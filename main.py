@@ -407,7 +407,7 @@ def build_splash_pixmap(
 
     indicator_y = 370
 
-    for label, x, required_progress:
+    for label, x, required_progress in indicators:
 
         active = progress >= required_progress
 
