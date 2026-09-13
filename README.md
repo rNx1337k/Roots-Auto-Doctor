@@ -13,7 +13,6 @@
   <img src="https://img.shields.io/badge/Platform-Windows-lightgrey" />
   <img src="https://img.shields.io/badge/OBD-Diagnostics-orange" />
   <img src="https://img.shields.io/badge/Status-In%20Development-yellow" />
-  ![GitHub Downloads](https://img.shields.io/github/downloads/rNx1337k/Roots-Auto-Doctor/total?style=for-the-badge&label=Downloads)
 </p>
 
 ────────
