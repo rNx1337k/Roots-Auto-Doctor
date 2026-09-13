@@ -1,7 +1,14 @@
 import sys
+import math
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPixmap, QFont, QColor, QPainter, QPen
+from PySide6.QtGui import (
+    QPixmap,
+    QFont,
+    QColor,
+    QPainter,
+    QPen,
+)
 from PySide6.QtWidgets import QApplication, QSplashScreen
 
 from gui.main_window import MainWindow
@@ -12,8 +19,8 @@ APP_VERSION = "0.2.0"
 
 
 def build_splash_pixmap(animation=0):
-    width = 500
-    height = 300
+    width = 560
+    height = 320
 
     pixmap = QPixmap(width, height)
     pixmap.fill(QColor(BG))
@@ -26,93 +33,155 @@ def build_splash_pixmap(animation=0):
     text = QColor(TEXT)
     text_dim = QColor(TEXT_DIM)
 
-    # Linha superior
+    # ========================================================
+    # TOPO — pequena linha de destaque
+    # ========================================================
+
     painter.setPen(Qt.NoPen)
     painter.setBrush(accent)
-    painter.drawRect(0, 0, width, 3)
 
-    # ROOTS
+    painter.drawRoundedRect(
+        width // 2 - 22,
+        28,
+        44,
+        3,
+        1.5,
+        1.5,
+    )
+
+    # ========================================================
+    # LOGO / NOME
+    # ========================================================
+
     painter.setPen(accent)
-    painter.setFont(QFont("Segoe UI", 38, QFont.Bold))
+    painter.setFont(
+        QFont(
+            "Segoe UI",
+            38,
+            QFont.Weight.Bold,
+        )
+    )
 
     painter.drawText(
         0,
-        85,
+        92,
         width,
         50,
         Qt.AlignCenter,
-        "ROOTS"
+        "ROOTS",
     )
 
-    # AUTO DOCTOR
+    # ========================================================
+    # SUBTÍTULO
+    # ========================================================
+
     painter.setPen(text)
-    painter.setFont(QFont("Segoe UI", 15, QFont.Bold))
-
-    painter.drawText(
-        0,
-        115,
-        width,
-        35,
-        Qt.AlignCenter,
-        "AUTO DOCTOR"
+    painter.setFont(
+        QFont(
+            "Segoe UI",
+            13,
+            QFont.Weight.DemiBold,
+        )
     )
 
-    # Mensagem
-    painter.setPen(text_dim)
-    painter.setFont(QFont("Segoe UI", 9))
-
     painter.drawText(
         0,
-        165,
+        132,
         width,
         30,
         Qt.AlignCenter,
-        "A iniciar o sistema..."
+        "AUTO DOCTOR",
     )
 
-    # Loader
+    # ========================================================
+    # DESCRIÇÃO
+    # ========================================================
+
+    painter.setPen(text_dim)
+    painter.setFont(
+        QFont(
+            "Segoe UI",
+            9,
+        )
+    )
+
+    painter.drawText(
+        0,
+        170,
+        width,
+        25,
+        Qt.AlignCenter,
+        "A preparar o sistema...",
+    )
+
+    # ========================================================
+    # LOADER MODERNO
+    # ========================================================
+
     center_x = width // 2
-    center_y = 220
-    radius = 20
+    center_y = 218
+
+    outer_radius = 13
+    inner_radius = 8
 
     for i in range(12):
-        angle = (animation + i * 30) % 360
+        angle = animation + (i * 30)
 
-        opacity = int(255 * (i + 1) / 12)
+        radians = math.radians(angle)
+
+        # Fazemos os pontos ficarem em círculo
+        x = center_x + math.cos(radians) * outer_radius
+        y = center_y + math.sin(radians) * outer_radius
+
+        # O ponto mais recente é mais forte
+        opacity = int(35 + (220 * (i + 1) / 12))
 
         color = QColor(accent)
         color.setAlpha(opacity)
 
-        pen = QPen(color)
-        pen.setWidth(4)
-        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
 
-        painter.setPen(pen)
+        dot_size = 3 if i < 8 else 2
 
-        # Coordenadas do ponto do loader
-        import math
+        painter.drawEllipse(
+            int(x - dot_size / 2),
+            int(y - dot_size / 2),
+            dot_size,
+            dot_size,
+        )
 
-        radians = math.radians(angle)
+    # Pequeno ponto central
+    center_color = QColor(accent)
+    center_color.setAlpha(180)
 
-        x1 = center_x + int(math.cos(radians) * 10)
-        y1 = center_y + int(math.sin(radians) * 10)
+    painter.setBrush(center_color)
+    painter.drawEllipse(
+        center_x - 2,
+        center_y - 2,
+        4,
+        4,
+    )
 
-        x2 = center_x + int(math.cos(radians) * radius)
-        y2 = center_y + int(math.sin(radians) * radius)
+    # ========================================================
+    # VERSÃO
+    # ========================================================
 
-        painter.drawLine(x1, y1, x2, y2)
-
-    # Versão
     painter.setPen(text_dim)
-    painter.setFont(QFont("Segoe UI", 8))
+    painter.setFont(
+        QFont(
+            "Segoe UI",
+            8,
+        )
+    )
 
     painter.drawText(
         0,
-        270,
+        282,
         width,
         20,
         Qt.AlignCenter,
-        f"v{APP_VERSION}"
+        f"v{APP_VERSION}",
     )
 
     painter.end()
@@ -130,24 +199,26 @@ def main():
     app.setStyleSheet(APP_STYLE)
 
     # ========================================================
-    # SPLASH
+    # SPLASH SCREEN
     # ========================================================
 
     animation = 0
 
     splash = QSplashScreen(
         build_splash_pixmap(animation),
-        Qt.WindowStaysOnTopHint
+        Qt.WindowStaysOnTopHint,
     )
 
-    splash.setWindowFlag(Qt.FramelessWindowHint)
+    splash.setWindowFlag(
+        Qt.FramelessWindowHint
+    )
 
     splash.show()
 
     app.processEvents()
 
     # ========================================================
-    # LOADER
+    # ANIMAÇÃO
     # ========================================================
 
     def update_splash():
@@ -162,16 +233,12 @@ def main():
 
         app.processEvents()
 
-    # ========================================================
-    # TIMER DO LOADER
-    # ========================================================
-
     loader_timer = QTimer()
     loader_timer.timeout.connect(update_splash)
     loader_timer.start(100)
 
     # ========================================================
-    # ABRIR A APLICAÇÃO
+    # ABRIR APLICAÇÃO
     # ========================================================
 
     def start_application():
@@ -183,8 +250,10 @@ def main():
 
         splash.finish(window)
 
-    # Aguarda aproximadamente 1.5 segundos
-    QTimer.singleShot(1500, start_application)
+    QTimer.singleShot(
+        1500,
+        start_application,
+    )
 
     # ========================================================
     # START

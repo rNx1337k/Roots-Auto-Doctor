@@ -185,7 +185,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(divider)
         layout.addSpacing(10)
 
-        version = QLabel("Roots Auto Doctor  ·  v0.3.0")
+        version = QLabel("Roots Auto Doctor  ·  v0.2.0")
         version.setStyleSheet(
             f"color: {TEXT_FAINT}; font-size: 11px; padding: 4px 2px;"
         )
