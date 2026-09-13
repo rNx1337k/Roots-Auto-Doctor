@@ -37,8 +37,8 @@ class Dashboard(QWidget):
         layout.setSpacing(20)
 
         layout.addWidget(page_header(
-            "Dashboard",
-            "Resumo do veículo e da sessão de diagnóstico atual"
+            "Ecra Principal",
+            "Dados do diagnóstico atual"
         ))
 
         self.stack = QStackedWidget()
@@ -90,9 +90,8 @@ class Dashboard(QWidget):
         )
 
         subtitle = QLabel(
-            "Ainda não há nenhum veículo ligado. Liga um adaptador "
-            "ELM327/OBD-II para começares a diagnosticar — sem ligação "
-            "não há dados reais para mostrar."
+            "Ainda não há nenhum veículo ligado."
+            "Liga um adaptador OBD-II para começares a diagnosticar — sem ligação "
         )
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setWordWrap(True)
