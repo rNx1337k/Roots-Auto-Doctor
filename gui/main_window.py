@@ -30,6 +30,7 @@ from gui.styles import (
     ACCENT,
     DIVIDER
 )
+from app.config import APP_VERSION
 
 
 # (ícone, nome, subtítulo mostrado na barra superior, classe da página)
@@ -100,7 +101,8 @@ class MainWindow(QMainWindow):
 
         # Qualquer página bloqueada por falta de ligação leva o
         # utilizador diretamente à página de Ligação.
-        for page in (self.dtc_page, self.live_data_page, self.readiness_page, self.modules_page):
+        for page in (self.dtc_page, self.live_data_page, self.readiness_page,
+                     self.modules_page, self.graphs_page):
             page.gate.goToConnection.connect(self.go_to_connection)
 
         self.dashboard_page.goToConnection.connect(self.go_to_connection)
@@ -154,6 +156,7 @@ class MainWindow(QMainWindow):
         self.dtc_page = self.page_widgets[3]
         self.live_data_page = self.page_widgets[4]
         self.readiness_page = self.page_widgets[5]
+        self.graphs_page = self.page_widgets[6]
         self.logs_page = self.page_widgets[7]
 
         for section_label, indexes in NAV_SECTIONS:
@@ -185,7 +188,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(divider)
         layout.addSpacing(10)
 
-        version = QLabel("Roots Auto Doctor  ·  v0.2.0")
+        version = QLabel(f"Roots Auto Doctor  ·  v{APP_VERSION}")
         version.setStyleSheet(
             f"color: {TEXT_FAINT}; font-size: 11px; padding: 4px 2px;"
         )
@@ -300,6 +303,7 @@ class MainWindow(QMainWindow):
         self.live_data_page.set_protocol(protocol)
         self.readiness_page.set_protocol(protocol)
         self.modules_page.set_protocol(protocol, info)
+        self.graphs_page.set_protocol(protocol)
 
         vehicle = info.get("vehicle")
         if vehicle:

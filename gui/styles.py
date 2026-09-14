@@ -172,6 +172,7 @@ QTextEdit {{
 
 QTableWidget {{
     background: {CARD_BG};
+    alternate-background-color: {CARD_BG_HOVER};
     border: 1px solid {CARD_BORDER};
     border-radius: 10px;
     gridline-color: {DIVIDER};

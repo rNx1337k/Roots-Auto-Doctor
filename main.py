@@ -8,14 +8,45 @@ from PySide6.QtGui import (
     QColor,
     QPainter,
     QPen,
+    QIcon,
 )
 from PySide6.QtWidgets import QApplication, QSplashScreen
 
 from gui.main_window import MainWindow
 from gui.styles import APP_STYLE, BG, ACCENT, TEXT, TEXT_DIM
+from app.config import APP_NAME, APP_VERSION
 
 
-APP_VERSION = "0.2.0"
+def build_app_icon():
+    """Ícone simples gerado em código (sem depender de ficheiros
+    externos) para a app ter identidade visual na barra de tarefas
+    e no Alt+Tab, em vez do ícone genérico do Qt."""
+
+    size = 128
+
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor(BG))
+    painter.drawRoundedRect(4, 4, size - 8, size - 8, 26, 26)
+
+    pen = QPen(QColor(ACCENT))
+    pen.setWidth(4)
+    painter.setPen(pen)
+    painter.setBrush(Qt.NoBrush)
+    painter.drawRoundedRect(4, 4, size - 8, size - 8, 26, 26)
+
+    painter.setPen(QColor(ACCENT))
+    painter.setFont(QFont("Segoe UI", 56, QFont.Weight.Bold))
+    painter.drawText(pixmap.rect(), Qt.AlignCenter, "R")
+
+    painter.end()
+
+    return QIcon(pixmap)
 
 
 def build_splash_pixmap(animation=0):
@@ -122,7 +153,6 @@ def build_splash_pixmap(animation=0):
     center_y = 218
 
     outer_radius = 13
-    inner_radius = 8
 
     for i in range(12):
         angle = animation + (i * 30)
@@ -193,10 +223,13 @@ def main():
 
     app = QApplication(sys.argv)
 
-    app.setApplicationName("Roots Auto Doctor")
+    app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
 
     app.setStyleSheet(APP_STYLE)
+
+    app_icon = build_app_icon()
+    app.setWindowIcon(app_icon)
 
     # ========================================================
     # SPLASH SCREEN
@@ -246,6 +279,7 @@ def main():
         loader_timer.stop()
 
         window = MainWindow()
+        window.setWindowIcon(app_icon)
         window.show()
 
         splash.finish(window)

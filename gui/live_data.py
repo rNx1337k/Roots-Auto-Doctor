@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from gui.widgets import page_header, empty_hint, LiveGraph, Gauge, page_with_gate
 from gui.styles import TEXT_FAINT, ACCENT, CARD_BORDER
 from services.pid_database import PID_TABLE, ALL_CATEGORIES, get_pid
+from app.config import LIVE_DATA_INTERVAL
 
 
 class LiveDataWorker(QThread):
@@ -29,7 +30,7 @@ class LiveDataWorker(QThread):
     sample = Signal(int, object, str)   # pid, valor, unidade
     error = Signal(str)
 
-    def __init__(self, protocol, pids, interval=1.0):
+    def __init__(self, protocol, pids, interval=LIVE_DATA_INTERVAL):
 
         super().__init__()
 
@@ -178,11 +179,15 @@ class LiveDataPage(QWidget):
         self.table.setHorizontalHeaderLabels([
             "", "Parâmetro", "Valor", "Unidade", "Gráfico"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self.table.setColumnWidth(0, 34)
         self.table.setColumnWidth(4, 70)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
 
         self.populate_table()
 

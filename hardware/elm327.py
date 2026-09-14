@@ -4,6 +4,7 @@ Trata da inicialização (comandos AT), do envio de comandos OBD-II
 e da limpeza das respostas em bruto devolvidas pelo adaptador.
 """
 
+import re
 import time
 
 
@@ -38,7 +39,11 @@ class ELM327:
     def initialize(self):
 
         for command in self.INIT_SEQUENCE:
-            self._write(command)
+            # o ATZ obriga o chip a reiniciar-se fisicamente — dá-lhe
+            # tempo a acordar antes do próximo comando, ou o adaptador
+            # pode perder os primeiros carateres que lhe enviamos.
+            delay = 1.2 if command == "ATZ" else 0.05
+            self._write(command, delay=delay)
 
         self.initialized = True
 
@@ -49,6 +54,24 @@ class ELM327:
         response = self._write("ATDPN")
         self.protocol_name = self._describe_protocol(response)
         return self.protocol_name
+
+    def battery_voltage(self):
+        """Lê a tensão OBD/bateria através do adaptador (comando
+        'AT RV'). É o primeiro teste de sanidade a fazer num carro
+        real: sem ~12V aqui, o problema é a ficha/fusível, não a app."""
+
+        response = self._write("ATRV")
+        text = " ".join(self._clean_lines(response))
+
+        match = re.search(r"\d+(?:\.\d+)?", text)
+
+        if not match:
+            return None
+
+        try:
+            return float(match.group())
+        except ValueError:
+            return None
 
     @staticmethod
     def _describe_protocol(code):
@@ -75,7 +98,7 @@ class ELM327:
     # Comunicação
     # ------------------------------------------------------------------
 
-    def command(self, command, delay=0.15):
+    def command(self, command, delay=0.02):
         """Envia um comando OBD-II (ex: '010C') e devolve a resposta
         já limpa, como lista de linhas em texto (sem o prompt '>')."""
 
@@ -86,7 +109,7 @@ class ELM327:
 
         return self._clean_lines(raw)
 
-    def _write(self, command, delay=0.3):
+    def _write(self, command, delay=0.02):
 
         payload = f"{command}\r".encode("ascii", errors="ignore")
 
@@ -95,23 +118,42 @@ class ELM327:
         if self.logger:
             self.logger.log(command, direction="TX")
 
-        time.sleep(delay)
+        if delay:
+            time.sleep(delay)
 
-        chunk = self.interface.receive(4096)
-        text = chunk.decode("ascii", errors="ignore")
-
-        # Alguns adaptadores respondem em vários blocos; espera um
-        # pouco mais se ainda não recebeu o prompt de fim ('>').
-        attempts = 0
-        while self.PROMPT not in text and attempts < 8:
-            time.sleep(0.1)
-            more = self.interface.receive(4096)
-            text += more.decode("ascii", errors="ignore")
-            attempts += 1
+        text = self._read_response()
 
         if self.logger:
             for line in self._clean_lines(text):
                 self.logger.log(line, direction="RX")
+
+        return text
+
+    def _read_response(self):
+        """Lê a resposta do adaptador até ao prompt '>'. Usa leitura
+        bloqueante-até-terminador quando a interface a suporta — devolve
+        assim que a resposta chega, em vez de esperar sempre pelo
+        timeout completo, o que é essencial para dados ao vivo fluidos."""
+
+        if hasattr(self.interface, "receive_until"):
+            raw = self.interface.receive_until(self.PROMPT.encode("ascii"))
+            return raw.decode("ascii", errors="ignore")
+
+        # Reserva para interfaces sem leitura-até-terminador: vai
+        # buscando blocos pequenos até encontrar o prompt ou esgotar
+        # as tentativas.
+        text = ""
+        attempts = 0
+
+        while self.PROMPT not in text and attempts < 20:
+
+            chunk = self.interface.receive(4096)
+            text += chunk.decode("ascii", errors="ignore")
+
+            if self.PROMPT not in text:
+                time.sleep(0.05)
+
+            attempts += 1
 
         return text
 

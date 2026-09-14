@@ -90,8 +90,8 @@ class Dashboard(QWidget):
         )
 
         subtitle = QLabel(
-            "Ainda não há nenhum veículo ligado."
-            "Liga um adaptador OBD-II para começares a diagnosticar — sem ligação "
+            "Ainda não há nenhum veículo ligado. Liga um adaptador "
+            "OBD-II para começares a diagnosticar."
         )
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setWordWrap(True)
@@ -259,8 +259,9 @@ class Dashboard(QWidget):
 
         self.vin = QLabel("VIN  —")
         self.protocol = QLabel("Protocolo  —")
+        self.voltage = QLabel("Bateria  —")
 
-        for label in (self.vin, self.protocol):
+        for label in (self.vin, self.protocol, self.voltage):
             label.setStyleSheet(
                 f"color: {TEXT_DIM}; font-size: 12px; background: transparent;"
             )
@@ -285,6 +286,16 @@ class Dashboard(QWidget):
 
         if vehicle.protocol:
             self.protocol.setText(f"Protocolo  {vehicle.protocol}")
+
+        if vehicle.battery_voltage is not None:
+            accent = DANGER if vehicle.battery_voltage < 11.5 else (
+                WARNING if vehicle.battery_voltage > 15.0 else TEXT_DIM
+            )
+            self.voltage.setText(f"Bateria  {vehicle.battery_voltage:g}V")
+            self.voltage.setStyleSheet(
+                f"color: {accent}; font-size: 12px; font-weight: 700; "
+                f"background: transparent;"
+            )
 
     def set_connection_state(self, state):
 
@@ -312,6 +323,10 @@ class Dashboard(QWidget):
             self.vehicle.setText("Veículo não identificado")
             self.vin.setText("VIN  —")
             self.protocol.setText("Protocolo  —")
+            self.voltage.setText("Bateria  —")
+            self.voltage.setStyleSheet(
+                f"color: {TEXT_DIM}; font-size: 12px; background: transparent;"
+            )
 
         self.connection_card.set_value(
             labels.get(state, "Desligado"),

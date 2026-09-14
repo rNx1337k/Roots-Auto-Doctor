@@ -14,6 +14,7 @@ class Vehicle:
         self.engine = None
 
         self.protocol = None
+        self.battery_voltage = None
 
         self.ecus = []
 

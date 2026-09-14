@@ -16,8 +16,9 @@ from services.vin_lookup import guess_make
 from protocols.obd2 import OBD2
 from core.vehicle import Vehicle
 from app.logger import Logger
+from app.config import DEFAULT_OBD_BAUDRATE, SERIAL_TIMEOUT
 from gui.widgets import StatusPill, page_header, empty_hint
-from gui.styles import CARD_BG, CARD_BORDER, TEXT_DIM
+from gui.styles import CARD_BG, CARD_BORDER, TEXT_DIM, SUCCESS, WARNING, DANGER
 
 
 class IdentifyWorker(QThread):
@@ -40,7 +41,12 @@ class IdentifyWorker(QThread):
         try:
             elm = ELM327(self.interface, logger=self.logger)
             elm.initialize()
-            protocol_name = elm.detect_protocol()
+
+            protocol_name = None
+            try:
+                protocol_name = elm.detect_protocol()
+            except Exception:
+                pass
 
             obd2 = OBD2(elm)
 
@@ -63,12 +69,19 @@ class IdentifyWorker(QThread):
             except Exception:
                 pass
 
+            voltage = None
+            try:
+                voltage = elm.battery_voltage()
+            except Exception:
+                pass
+
             info = {
                 "protocol_name": protocol_name,
                 "vin": vin,
                 "ecu_name": ecu_name,
                 "supported_pid_count": len(supported),
                 "supported_pids": supported,
+                "battery_voltage": voltage,
             }
 
         except Exception as error:
@@ -168,6 +181,14 @@ class ConnectionPage(QWidget):
 
         self.status_pill = StatusPill("disconnected")
         action_row.addWidget(self.status_pill)
+
+        self.voltage_label = QLabel("")
+        self.voltage_label.setStyleSheet(
+            f"color: {TEXT_DIM}; font-size: 12px; font-weight: 600; "
+            f"background: transparent;"
+        )
+        action_row.addWidget(self.voltage_label)
+
         action_row.addStretch()
 
         layout.addLayout(action_row)
@@ -216,7 +237,11 @@ class ConnectionPage(QWidget):
         self.set_status("connecting", "A ligar ao adaptador...")
 
         try:
-            interface = SerialInterface(device)
+            interface = SerialInterface(
+                device,
+                baudrate=DEFAULT_OBD_BAUDRATE,
+                timeout=SERIAL_TIMEOUT
+            )
             self.manager.set_interface(interface)
             self.manager.connect()
 
@@ -240,12 +265,14 @@ class ConnectionPage(QWidget):
         device = self.ports.currentData()
         message = f"Ligado via {device} — {info.get('protocol_name') or 'protocolo automático'}."
         self.set_status("connected", message)
+        self.set_voltage(info.get("battery_voltage"))
 
         vehicle = Vehicle()
         vehicle.connected = True
         vehicle.vin = info.get("vin")
         vehicle.protocol = info.get("protocol_name")
         vehicle.make = guess_make(info.get("vin")) if info.get("vin") else None
+        vehicle.battery_voltage = info.get("battery_voltage")
 
         info["vehicle"] = vehicle
         info["label"] = f"{vehicle.make or ''}".strip() or None
@@ -258,8 +285,13 @@ class ConnectionPage(QWidget):
         self.connect_button.setText("Desligar")
         self.set_status(
             "connected",
-            f"Ligado, mas a identificação do veículo falhou: {message}"
+            f"Ligado ao adaptador, mas a identificação do veículo "
+            f"falhou: {message}\nConfirma que a chave está na "
+            f"posição \"Ignição\" e que a ficha OBD-II está bem "
+            f"encaixada, depois tenta ler os Códigos de Falha na "
+            f"mesma — pode funcionar mesmo assim."
         )
+        self.set_voltage(None)
         self.protocolReady.emit(None, {})
 
     def disconnect(self):
@@ -272,7 +304,27 @@ class ConnectionPage(QWidget):
 
         self.connect_button.setText("Ligar")
         self.set_status("disconnected", "Sem ligação estabelecida.")
+        self.set_voltage(None)
         self.protocolReady.emit(None, {})
+
+    def set_voltage(self, voltage):
+
+        if voltage is None:
+            self.voltage_label.setText("")
+            return
+
+        if voltage < 11.5:
+            color = DANGER
+        elif voltage > 15.0:
+            color = WARNING
+        else:
+            color = SUCCESS
+
+        self.voltage_label.setText(f"🔋  {voltage:g}V")
+        self.voltage_label.setStyleSheet(
+            f"color: {color}; font-size: 12px; font-weight: 700; "
+            f"background: transparent;"
+        )
 
     def set_status(self, state, message):
 

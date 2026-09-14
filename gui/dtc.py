@@ -94,10 +94,15 @@ class DTCPage(QWidget):
         self.table.setHorizontalHeaderLabels([
             "Código", "Sistema", "Origem", "Descrição"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setAlternatingRowColors(True)
         self.table.cellDoubleClicked.connect(self.show_freeze_frame)
 
         content_layout.addWidget(self.table)
