@@ -168,7 +168,7 @@ class GraphsPage(QWidget):
 
         if self.worker:
             self.worker.stop()
-            self.worker.wait(1500)
+            self.worker.wait(5000)
             self.worker = None
 
         self.start_button.setEnabled(self.protocol is not None)

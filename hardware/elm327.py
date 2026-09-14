@@ -6,6 +6,7 @@ e da limpeza das respostas em bruto devolvidas pelo adaptador.
 
 import re
 import time
+import threading
 
 
 class ELM327Error(Exception):
@@ -32,18 +33,33 @@ class ELM327:
         self.initialized = False
         self.protocol_name = None
 
+        # O ELM327 é um canal half-duplex: só deve existir um pedido
+        # pendente de cada vez. Isto é especialmente importante quando
+        # Live Data e Gráficos estão ativos em simultâneo.
+        self._io_lock = threading.RLock()
+
     # ------------------------------------------------------------------
     # Inicialização
     # ------------------------------------------------------------------
 
     def initialize(self):
 
+        responses = []
+
         for command in self.INIT_SEQUENCE:
             # o ATZ obriga o chip a reiniciar-se fisicamente — dá-lhe
             # tempo a acordar antes do próximo comando, ou o adaptador
             # pode perder os primeiros carateres que lhe enviamos.
             delay = 1.2 if command == "ATZ" else 0.05
-            self._write(command, delay=delay)
+            responses.append(self._write(command, delay=delay))
+
+        # Não exigimos uma mensagem específica: clones ELM327 variam
+        # bastante no texto apresentado durante o arranque. Basta que o
+        # adaptador tenha respondido a pelo menos um comando.
+        if not any(response and response.strip() for response in responses):
+            raise ELM327Error(
+                "O adaptador não respondeu aos comandos de inicialização."
+            )
 
         self.initialized = True
 
@@ -111,23 +127,27 @@ class ELM327:
 
     def _write(self, command, delay=0.02):
 
-        payload = f"{command}\r".encode("ascii", errors="ignore")
+        # Não permitir que dois threads misturem comandos/respostas no
+        # mesmo adaptador. Sem este lock, duas páginas a ler em paralelo
+        # podem receber a resposta destinada à outra.
+        with self._io_lock:
+            payload = f"{command}\r".encode("ascii", errors="ignore")
 
-        self.interface.send(payload)
+            self.interface.send(payload)
 
-        if self.logger:
-            self.logger.log(command, direction="TX")
+            if self.logger:
+                self.logger.log(command, direction="TX")
 
-        if delay:
-            time.sleep(delay)
+            if delay:
+                time.sleep(delay)
 
-        text = self._read_response()
+            text = self._read_response()
 
-        if self.logger:
-            for line in self._clean_lines(text):
-                self.logger.log(line, direction="RX")
+            if self.logger:
+                for line in self._clean_lines(text):
+                    self.logger.log(line, direction="RX")
 
-        return text
+            return text
 
     def _read_response(self):
         """Lê a resposta do adaptador até ao prompt '>'. Usa leitura
@@ -171,7 +191,22 @@ class ELM327:
             if not line:
                 continue
 
-            if line.upper() in ("OK", "SEARCHING...", "SEARCHING"):
+            upper = line.upper()
+
+            if upper in ("OK", "SEARCHING...", "SEARCHING"):
+                continue
+
+            if upper in (
+                "NO DATA",
+                "NODATA",
+                "UNABLE TO CONNECT",
+                "UNABLETOCONNECT",
+                "BUS INIT: ERROR",
+                "CAN ERROR",
+                "BUFFER FULL",
+                "STOPPED",
+            ):
+                cleaned.append(upper)
                 continue
 
             cleaned.append(line)

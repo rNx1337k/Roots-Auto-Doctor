@@ -259,6 +259,15 @@ class MainWindow(QMainWindow):
 
         return topbar
 
+    def closeEvent(self, event):
+        """Encerra leituras em background antes de fechar a aplicação."""
+        try:
+            self.live_data_page.stop_stream()
+            self.graphs_page.stop_stream()
+            self.connection_page.disconnect()
+        finally:
+            event.accept()
+
     def on_nav_changed(self, index):
 
         self.pages.setCurrentIndex(index)

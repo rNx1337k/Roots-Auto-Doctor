@@ -36,12 +36,16 @@ class OBD2:
 
         lines = self.adapter.command(command)
 
-        return self._to_bytes(lines, service)
+        return self._to_bytes(lines, service, pid=pid)
 
     @staticmethod
-    def _to_bytes(lines, service):
-        """Junta as linhas de resposta em bruto e devolve como lista de
-        bytes já sem o eco do serviço pedido (ex.: '41 0C 1A F8' -> [0x1A, 0xF8])."""
+    def _to_bytes(lines, service, pid=None):
+        """Converte respostas ELM em payload puro.
+
+        Ex.: ``41 0C 1A F8`` -> ``[0x1A, 0xF8]`` quando o pedido foi
+        ``01 0C``. Também aceita linhas CAN com cabeçalho, como
+        ``7E8 41 0C 1A F8``.
+        """
 
         expected_prefix = f"{(service + 0x40):02X}"
 
@@ -49,20 +53,57 @@ class OBD2:
 
         for line in lines:
 
-            line = line.replace(" ", "").upper()
+            raw_line = line.strip().upper()
+            compact = raw_line.replace(" ", "")
 
-            if not line or line in ("NODATA", "?", "UNABLETOCONNECT"):
+            if not compact or compact in (
+                "NODATA",
+                "NO DATA",
+                "?",
+                "UNABLETOCONNECT",
+                "UNABLE TO CONNECT",
+                "BUS INIT: ERROR",
+                "CAN ERROR",
+                "STOPPED",
+            ):
                 continue
 
-            if not all(c in "0123456789ABCDEF" for c in line):
-                continue
+            # Alguns adaptadores mantêm os headers CAN ativos apesar de
+            # AT H0. Aceita também respostas do tipo "7E8 41 0C ...".
+            candidates = [compact]
 
-            if line.startswith(expected_prefix):
-                line = line[len(expected_prefix):]
+            if " " in raw_line:
+                parts = raw_line.split()
+                for index, part in enumerate(parts):
+                    if part == expected_prefix:
+                        candidates.append("".join(parts[index:]))
 
-                # ignora o PID de volta quando presente (ex. "0C" em "410C1AF8")
-                data = bytes.fromhex(line)
+            for candidate in candidates:
+                if not all(c in "0123456789ABCDEF" for c in candidate):
+                    continue
+
+                if not candidate.startswith(expected_prefix):
+                    continue
+
+                data_hex = candidate[len(expected_prefix):]
+
+                try:
+                    data = bytes.fromhex(data_hex)
+                except ValueError:
+                    continue
+
+                # Respostas de Modo 01/02/09 repetem o PID/InfoType
+                # solicitado logo após o serviço de resposta.
+                if pid is not None:
+                    if not data or data[0] != pid:
+                        continue
+                    data = data[1:]
+
+                if not data:
+                    continue
+
                 results.append(data)
+                break
 
         return results
 
@@ -207,7 +248,7 @@ class OBD2:
 
         command = f"02{pid:02X}{frame_number:02X}"
         lines = self.adapter.command(command)
-        frames = self._to_bytes(lines, 0x02)
+        frames = self._to_bytes(lines, 0x02, pid=pid)
 
         if not frames:
             return None, None
