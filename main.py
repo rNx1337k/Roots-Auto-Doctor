@@ -13,14 +13,20 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QSplashScreen
 
 from gui.main_window import MainWindow
-from gui.styles import APP_STYLE, BG, ACCENT, TEXT, TEXT_DIM
+from gui.styles import (
+    BG,
+    TEXT,
+    TEXT_DIM,
+    get_current_accent,
+    load_and_apply_saved_theme,
+)
 from app.config import APP_NAME, APP_VERSION
 
 
-def build_app_icon():
-    """Ícone simples gerado em código (sem depender de ficheiros
-    externos) para a app ter identidade visual na barra de tarefas
-    e no Alt+Tab, em vez do ícone genérico do Qt."""
+def build_app_icon(accent=None):
+    """Cria o ícone da aplicação usando a cor de destaque actual."""
+
+    accent = accent or get_current_accent()
 
     size = 128
 
@@ -32,24 +38,55 @@ def build_app_icon():
 
     painter.setPen(Qt.NoPen)
     painter.setBrush(QColor(BG))
-    painter.drawRoundedRect(4, 4, size - 8, size - 8, 26, 26)
+    painter.drawRoundedRect(
+        4,
+        4,
+        size - 8,
+        size - 8,
+        26,
+        26,
+    )
 
-    pen = QPen(QColor(ACCENT))
+    pen = QPen(QColor(accent))
     pen.setWidth(4)
+
     painter.setPen(pen)
     painter.setBrush(Qt.NoBrush)
-    painter.drawRoundedRect(4, 4, size - 8, size - 8, 26, 26)
 
-    painter.setPen(QColor(ACCENT))
-    painter.setFont(QFont("Segoe UI", 56, QFont.Weight.Bold))
-    painter.drawText(pixmap.rect(), Qt.AlignCenter, "R")
+    painter.drawRoundedRect(
+        4,
+        4,
+        size - 8,
+        size - 8,
+        26,
+        26,
+    )
+
+    painter.setPen(QColor(accent))
+    painter.setFont(
+        QFont(
+            "Segoe UI",
+            56,
+            QFont.Weight.Bold,
+        )
+    )
+
+    painter.drawText(
+        pixmap.rect(),
+        Qt.AlignCenter,
+        "R",
+    )
 
     painter.end()
 
     return QIcon(pixmap)
 
 
-def build_splash_pixmap(animation=0):
+def build_splash_pixmap(animation=0, accent=None):
+    """Cria o Splash usando o tema actualmente seleccionado."""
+
+    accent = accent or get_current_accent()
+
     width = 560
     height = 320
 
@@ -60,7 +97,7 @@ def build_splash_pixmap(animation=0):
     painter.setRenderHint(QPainter.Antialiasing)
     painter.setRenderHint(QPainter.TextAntialiasing)
 
-    accent = QColor(ACCENT)
+    accent_color = QColor(accent)
     text = QColor(TEXT)
     text_dim = QColor(TEXT_DIM)
 
@@ -69,7 +106,7 @@ def build_splash_pixmap(animation=0):
     # ========================================================
 
     painter.setPen(Qt.NoPen)
-    painter.setBrush(accent)
+    painter.setBrush(accent_color)
 
     painter.drawRoundedRect(
         width // 2 - 22,
@@ -84,7 +121,7 @@ def build_splash_pixmap(animation=0):
     # LOGO / NOME
     # ========================================================
 
-    painter.setPen(accent)
+    painter.setPen(accent_color)
     painter.setFont(
         QFont(
             "Segoe UI",
@@ -159,14 +196,12 @@ def build_splash_pixmap(animation=0):
 
         radians = math.radians(angle)
 
-        # Fazemos os pontos ficarem em círculo
         x = center_x + math.cos(radians) * outer_radius
         y = center_y + math.sin(radians) * outer_radius
 
-        # O ponto mais recente é mais forte
         opacity = int(35 + (220 * (i + 1) / 12))
 
-        color = QColor(accent)
+        color = QColor(accent_color)
         color.setAlpha(opacity)
 
         painter.setPen(Qt.NoPen)
@@ -182,10 +217,11 @@ def build_splash_pixmap(animation=0):
         )
 
     # Pequeno ponto central
-    center_color = QColor(accent)
+    center_color = QColor(accent_color)
     center_color.setAlpha(180)
 
     painter.setBrush(center_color)
+
     painter.drawEllipse(
         center_x - 2,
         center_y - 2,
@@ -226,9 +262,24 @@ def main():
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
 
-    app.setStyleSheet(APP_STYLE)
+    # ========================================================
+    # CARREGAR TEMA GUARDADO
+    # ========================================================
+    #
+    # IMPORTANTE:
+    # O tema é aplicado antes de criar o Splash.
+    # Assim, Splash + aplicação começam com exactamente
+    # a mesma cor.
+    #
+    load_and_apply_saved_theme(app)
 
-    app_icon = build_app_icon()
+    accent = get_current_accent()
+
+    # ========================================================
+    # ÍCONE DA APLICAÇÃO
+    # ========================================================
+
+    app_icon = build_app_icon(accent)
     app.setWindowIcon(app_icon)
 
     # ========================================================
@@ -238,7 +289,10 @@ def main():
     animation = 0
 
     splash = QSplashScreen(
-        build_splash_pixmap(animation),
+        build_splash_pixmap(
+            animation,
+            accent,
+        ),
         Qt.WindowStaysOnTopHint,
     )
 
@@ -261,7 +315,10 @@ def main():
         animation = (animation + 30) % 360
 
         splash.setPixmap(
-            build_splash_pixmap(animation)
+            build_splash_pixmap(
+                animation,
+                accent,
+            )
         )
 
         app.processEvents()
@@ -298,3 +355,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

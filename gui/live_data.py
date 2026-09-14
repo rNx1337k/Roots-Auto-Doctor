@@ -35,8 +35,8 @@ class LiveDataWorker(QThread):
         super().__init__()
 
         self.protocol = protocol
-        self.pids = list(pids)
-        self.interval = max(0.1, float(interval))
+        self.pids = pids
+        self.interval = interval
         self._running = True
 
     def run(self):
@@ -56,13 +56,7 @@ class LiveDataWorker(QThread):
 
                 self.sample.emit(pid, value, unit or "")
 
-            # Não bloqueia o thread durante todo o intervalo: permite
-            # parar rapidamente mesmo quando a lista de PIDs é curta.
-            remaining_ms = int(self.interval * 1000)
-            while self._running and remaining_ms > 0:
-                step = min(100, remaining_ms)
-                self.msleep(step)
-                remaining_ms -= step
+            self.msleep(int(self.interval * 1000))
 
     def stop(self):
         self._running = False
@@ -387,10 +381,7 @@ class LiveDataPage(QWidget):
 
         if self.worker:
             self.worker.stop()
-            # Uma leitura serial pode estar a aguardar o timeout do
-            # adaptador. Dá tempo suficiente para o thread sair antes de
-            # a ligação poder ser fechada.
-            self.worker.wait(5000)
+            self.worker.wait(1500)
             self.worker = None
 
         self.start_button.setEnabled(self.protocol is not None and bool(self.selected_pids))

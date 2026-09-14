@@ -4,7 +4,7 @@
 
 **Modern automotive diagnostic software for OBD-II vehicles.**
 
-Connect an ELM327-compatible adapter, talk to your car's ECU, and read real diagnostic
+Connect an ELM327 adapter, talk to your car's ECU, and read real diagnostic
 data — fault codes, live sensors, readiness monitors — through a fast,
 dark-themed desktop app.
 
@@ -31,18 +31,11 @@ No subscriptions, no cloud accounts — just plug in, connect, and diagnose.
 The goal is to give hobbyists and technicians a tool that feels as fast and
 clear as the professional scanners, without the professional price tag.
 
-## 🆕 0.2.1
-
-- Safer serial communication when more than one live-data view is active.
-- More tolerant ELM327 response parsing, including adapters that keep CAN headers enabled.
-- Cleaner shutdown of background diagnostic threads.
-- Improved COM-port feedback during connection.
-
 ## ⚙️ Features
 
 | | |
 |---|---|
-| 🔌 **Auto interface detection** | Scans available COM ports and connects to ELM327-compatible adapters |
+| 🔌 **Auto interface detection** | Scans available COM ports and connects to any ELM327-compatible adapter |
 | 🧩 **ECU gateway info** | Reads protocol, VIN and ECU name straight from the vehicle |
 | ⚠️ **Fault codes (DTC)** | Reads, categorizes (Engine / ABS / Body / Network) and clears trouble codes |
 | 🧊 **Freeze frame** | Snapshot of key sensors at the exact moment a fault was recorded |

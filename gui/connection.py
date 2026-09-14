@@ -42,9 +42,6 @@ class IdentifyWorker(QThread):
             elm = ELM327(self.interface, logger=self.logger)
             elm.initialize()
 
-            if self.isInterruptionRequested():
-                return
-
             protocol_name = None
             try:
                 protocol_name = elm.detect_protocol()
@@ -163,7 +160,7 @@ class ConnectionPage(QWidget):
         self.ports.setMinimumHeight(38)
         port_row.addWidget(self.ports, 1)
 
-        refresh = QPushButton("⟳   Atualizar")
+        refresh = QPushButton("Atualizar")
         refresh.setMinimumHeight(38)
         refresh.setCursor(Qt.PointingHandCursor)
         refresh.clicked.connect(self.refresh_ports)
@@ -213,10 +210,6 @@ class ConnectionPage(QWidget):
 
         if not ports:
             self.ports.addItem("Nenhuma porta encontrada", None)
-            self.status.setText(
-                "Não foram encontradas portas COM. Liga o adaptador e "
-                "carrega em «Atualizar»."
-            )
             return
 
         for port in ports:
@@ -241,7 +234,7 @@ class ConnectionPage(QWidget):
             return
 
         self.connect_button.setEnabled(False)
-        self.set_status("connecting", f"A ligar à porta {device}...")
+        self.set_status("connecting", "A ligar ao adaptador...")
 
         try:
             interface = SerialInterface(
@@ -259,7 +252,6 @@ class ConnectionPage(QWidget):
 
         self.set_status("connecting", "A identificar o veículo...")
 
-        # Guarda a thread apenas enquanto a identificação está ativa.
         self.identify_worker = IdentifyWorker(interface, self.logger)
         self.identify_worker.finished_ok.connect(self.on_identified)
         self.identify_worker.failed.connect(self.on_identify_failed)
@@ -267,7 +259,6 @@ class ConnectionPage(QWidget):
 
     def on_identified(self, obd2, info):
 
-        self.identify_worker = None
         self.connect_button.setEnabled(True)
         self.connect_button.setText("Desligar")
 
@@ -290,7 +281,6 @@ class ConnectionPage(QWidget):
 
     def on_identify_failed(self, message):
 
-        self.identify_worker = None
         self.connect_button.setEnabled(True)
         self.connect_button.setText("Desligar")
         self.set_status(
@@ -307,16 +297,8 @@ class ConnectionPage(QWidget):
     def disconnect(self):
 
         if self.identify_worker and self.identify_worker.isRunning():
-            # A thread de identificação só faz I/O; interrompê-la de forma
-            # controlada evita deixar a porta COM num estado inconsistente.
-            self.identify_worker.requestInterruption()
-            self.identify_worker.wait(3500)
-
-            if self.identify_worker.isRunning():
-                self.identify_worker.terminate()
-                self.identify_worker.wait(500)
-
-        self.identify_worker = None
+            self.identify_worker.terminate()
+            self.identify_worker.wait(500)
 
         self.manager.disconnect()
 
@@ -338,7 +320,7 @@ class ConnectionPage(QWidget):
         else:
             color = SUCCESS
 
-        self.voltage_label.setText(f"🔋  {voltage:g}V")
+        self.voltage_label.setText(f"Bateria  {voltage:g} V")
         self.voltage_label.setStyleSheet(
             f"color: {color}; font-size: 12px; font-weight: 700; "
             f"background: transparent;"

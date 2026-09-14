@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QFrame,
     QPushButton,
-    QStackedWidget
 )
 
 from gui.widgets import StatCard, page_header
@@ -20,242 +19,242 @@ from gui.styles import (
     ACCENT,
     SUCCESS,
     WARNING,
-    DANGER
+    DANGER,
 )
 
 
 class Dashboard(QWidget):
+    """Página principal: visão rápida da sessão e acesso às funções principais.
+
+    O Dashboard não duplica ferramentas de diagnóstico. Serve como cockpit da
+    aplicação: estado da ligação, veículo, indicadores essenciais e atalhos.
+    """
 
     goToConnection = Signal()
+    goToDTC = Signal()
+    goToLiveData = Signal()
+    goToReadiness = Signal()
 
     def __init__(self):
-
         super().__init__()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(20)
+        layout.setSpacing(16)
 
         layout.addWidget(page_header(
-            "Ecra Principal",
-            "Dados do diagnóstico atual"
+            "Dashboard",
+            "Centro de controlo da sessão de diagnóstico"
         ))
 
-        self.stack = QStackedWidget()
-        self.stack.addWidget(self.build_welcome_view())
-        self.stack.addWidget(self.build_connected_view())
+        self.content = QVBoxLayout()
+        self.content.setSpacing(16)
+        layout.addLayout(self.content)
+        layout.addStretch()
 
-        layout.addWidget(self.stack, 1)
-
+        self.connected = False
+        self._build_views()
         self.set_connection_state("disconnected")
 
+    def _build_views(self):
+        self.welcome_view = self.build_welcome_view()
+        self.connected_view = self.build_connected_view()
+        self.content.addWidget(self.welcome_view)
+        self.content.addWidget(self.connected_view)
+
     # ------------------------------------------------------------------
-    # Estado sem ligação — ecrã de boas-vindas com atalhos rápidos
+    # Ecrã sem ligação
     # ------------------------------------------------------------------
 
     def build_welcome_view(self):
-
         wrapper = QWidget()
         layout = QVBoxLayout(wrapper)
-        layout.setAlignment(Qt.AlignTop)
-        layout.setSpacing(20)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
 
         hero = QFrame()
-        hero.setObjectName("heroCard")
-        hero.setStyleSheet("""
-        #heroCard {
+        hero.setObjectName("dashboardHero")
+        hero.setStyleSheet(f"""
+        #dashboardHero {{
             background: qlineargradient(
                 x1:0, y1:0, x2:1, y2:1,
-                stop:0 rgba(34, 211, 201, 0.14),
-                stop:1 rgba(34, 211, 201, 0.02)
+                stop:0 rgba(34, 211, 201, 0.15),
+                stop:0.55 rgba(34, 211, 201, 0.055),
+                stop:1 rgba(20, 25, 32, 0.95)
             );
-            border: 1px solid #1E2530;
-            border-radius: 14px;
-        }
+            border: 1px solid {CARD_BORDER};
+            border-radius: 16px;
+        }}
         """)
 
-        hero_layout = QVBoxLayout(hero)
-        hero_layout.setContentsMargins(32, 34, 32, 34)
-        hero_layout.setSpacing(10)
-        hero_layout.setAlignment(Qt.AlignCenter)
+        hero_layout = QHBoxLayout(hero)
+        hero_layout.setContentsMargins(30, 28, 30, 28)
+        hero_layout.setSpacing(24)
 
-        icon = QLabel("🩺")
-        icon.setAlignment(Qt.AlignCenter)
-        icon.setStyleSheet("font-size: 42px; background: transparent;")
+        mark = QFrame()
+        mark.setFixedSize(62, 62)
+        mark.setStyleSheet(f"""
+        QFrame {{
+            background: rgba(34, 211, 201, 0.12);
+            border: 1px solid rgba(34, 211, 201, 0.35);
+            border-radius: 16px;
+        }}
+        """)
+        mark_layout = QVBoxLayout(mark)
+        mark_layout.setContentsMargins(0, 0, 0, 0)
+        mark_label = QLabel("RAD")
+        mark_label.setAlignment(Qt.AlignCenter)
+        mark_label.setStyleSheet(
+            f"font-size: 15px; font-weight: 900; color: {ACCENT}; "
+            "letter-spacing: 1px; background: transparent;"
+        )
+        mark_layout.addWidget(mark_label)
 
-        title = QLabel("Bem-vindo ao Roots Auto Doctor")
-        title.setAlignment(Qt.AlignCenter)
+        text = QVBoxLayout()
+        text.setSpacing(6)
+
+        eyebrow = QLabel("DIAGNÓSTICO AUTOMÓVEL")
+        eyebrow.setStyleSheet(
+            f"font-size: 10px; font-weight: 800; color: {ACCENT}; "
+            "letter-spacing: 1.8px; background: transparent;"
+        )
+
+        title = QLabel("Pronto para diagnosticar")
         title.setStyleSheet(
-            f"font-size: 21px; font-weight: 800; color: {TEXT}; background: transparent;"
+            f"font-size: 24px; font-weight: 850; color: {TEXT}; "
+            "background: transparent;"
         )
 
         subtitle = QLabel(
-            "Ainda não há nenhum veículo ligado. Liga um adaptador "
-            "OBD-II para começares a diagnosticar."
+            "Liga uma interface OBD para identificar o veículo e iniciar uma "
+            "sessão de diagnóstico."
         )
-        subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setWordWrap(True)
-        subtitle.setMaximumWidth(460)
         subtitle.setStyleSheet(
             f"font-size: 13px; color: {TEXT_DIM}; background: transparent;"
         )
 
-        button = QPushButton("⚡  Ligar ao Veículo")
+        text.addWidget(eyebrow)
+        text.addWidget(title)
+        text.addWidget(subtitle)
+
+        hero_layout.addWidget(mark, 0, Qt.AlignTop)
+        hero_layout.addLayout(text, 1)
+
+        button = QPushButton("Ligar ao Veículo")
         button.setObjectName("primaryButton")
         button.setCursor(Qt.PointingHandCursor)
-        button.setMinimumHeight(42)
-        button.setMinimumWidth(220)
+        button.setMinimumSize(170, 44)
         button.clicked.connect(self.goToConnection.emit)
-
-        hero_layout.addWidget(icon)
-        hero_layout.addWidget(title)
-        hero_layout.addWidget(subtitle)
-        hero_layout.addSpacing(6)
-        hero_layout.addWidget(button, 0, Qt.AlignCenter)
+        hero_layout.addWidget(button, 0, Qt.AlignVCenter)
 
         layout.addWidget(hero)
 
-        layout.addWidget(self.build_steps_card())
-        layout.addStretch()
-
-        return wrapper
-
-    def build_steps_card(self):
-
-        card = QFrame()
-        card.setObjectName("stepsCard")
-        card.setStyleSheet(f"""
-        #stepsCard {{
+        info = QFrame()
+        info.setObjectName("dashboardInfo")
+        info.setStyleSheet(f"""
+        #dashboardInfo {{
             background: {CARD_BG};
             border: 1px solid {CARD_BORDER};
-            border-radius: 12px;
+            border-radius: 14px;
         }}
         """)
+        info_layout = QHBoxLayout(info)
+        info_layout.setContentsMargins(20, 16, 20, 16)
+        info_layout.setSpacing(28)
 
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(22, 18, 22, 18)
-        layout.setSpacing(12)
-
-        title = QLabel("COMO COMEÇAR")
-        title.setStyleSheet(
-            f"font-size: 11px; font-weight: 700; color: {TEXT_DIM}; "
-            f"letter-spacing: 1px; background: transparent;"
-        )
-        layout.addWidget(title)
-
-        steps = [
-            ("1", "Liga o adaptador ELM327/OBD-II à tomada de diagnóstico do veículo (normalmente sob o volante)."),
-            ("2", "Com a chave na posição \"Ignição\" (ou motor ligado), vai a \"Ligação\" e seleciona a porta."),
-            ("3", "Depois de ligado, usa \"Códigos de Falha\", \"Dados em Tempo Real\" e \"Prontidão\" para diagnosticar."),
+        items = [
+            ("01", "LIGAÇÃO", "Detectar interface e iniciar sessão"),
+            ("02", "IDENTIFICAÇÃO", "Obter veículo, VIN e protocolo"),
+            ("03", "DIAGNÓSTICO", "Ler falhas e parâmetros em tempo real"),
         ]
 
-        for number, text in steps:
-            layout.addWidget(self._step_row(number, text))
+        for number, heading, description in items:
+            block = QVBoxLayout()
+            block.setSpacing(3)
 
-        return card
+            number_label = QLabel(number)
+            number_label.setStyleSheet(
+                f"font-size: 10px; font-weight: 900; color: {ACCENT}; "
+                "background: transparent;"
+            )
+            heading_label = QLabel(heading)
+            heading_label.setStyleSheet(
+                f"font-size: 10px; font-weight: 800; color: {TEXT}; "
+                "letter-spacing: 1px; background: transparent;"
+            )
+            desc_label = QLabel(description)
+            desc_label.setStyleSheet(
+                f"font-size: 11px; color: {TEXT_FAINT}; background: transparent;"
+            )
 
-    def _step_row(self, number, text):
+            block.addWidget(number_label)
+            block.addWidget(heading_label)
+            block.addWidget(desc_label)
+            info_layout.addLayout(block, 1)
 
-        row = QWidget()
-        row_layout = QHBoxLayout(row)
-        row_layout.setContentsMargins(0, 0, 0, 0)
-        row_layout.setSpacing(12)
-
-        badge = QLabel(number)
-        badge.setFixedSize(24, 24)
-        badge.setAlignment(Qt.AlignCenter)
-        badge.setStyleSheet(f"""
-        background: {ACCENT};
-        color: #06181A;
-        border-radius: 12px;
-        font-weight: 800;
-        font-size: 12px;
-        """)
-
-        label = QLabel(text)
-        label.setWordWrap(True)
-        label.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px; background: transparent;")
-
-        row_layout.addWidget(badge, 0, Qt.AlignTop)
-        row_layout.addWidget(label, 1)
-
-        return row
+        layout.addWidget(info)
+        return wrapper
 
     # ------------------------------------------------------------------
-    # Estado com ligação — resumo real do veículo e da sessão
+    # Ecrã ligado
     # ------------------------------------------------------------------
 
     def build_connected_view(self):
-
         wrapper = QWidget()
         layout = QVBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(20)
+        layout.setSpacing(16)
 
         layout.addWidget(self.build_vehicle_card())
 
         cards_row = QHBoxLayout()
-        cards_row.setSpacing(14)
+        cards_row.setSpacing(12)
 
-        self.connection_card = StatCard(
-            "🔌", "Ligação", "Desligado", accent=TEXT_FAINT
-        )
-        self.pids_card = StatCard(
-            "📡", "PIDs Suportados", "—", accent=ACCENT
-        )
-        self.dtc_card = StatCard(
-            "⚠", "Códigos de Falha", "—", accent=TEXT_FAINT
-        )
+        self.connection_card = StatCard("LINK", "Estado da Ligação", "Ligado", accent=SUCCESS)
+        self.pids_card = StatCard("PID", "PIDs Suportados", "—", accent=ACCENT)
+        self.dtc_card = StatCard("DTC", "Códigos de Falha", "—", accent=TEXT_FAINT)
+        self.voltage_card = StatCard("V", "Tensão da Bateria", "—", accent=TEXT_FAINT)
 
-        for card in (self.connection_card, self.pids_card, self.dtc_card):
-            cards_row.addWidget(card)
+        for card in (self.connection_card, self.pids_card, self.dtc_card, self.voltage_card):
+            cards_row.addWidget(card, 1)
 
         layout.addLayout(cards_row)
-
-        hint = QLabel(
-            "Usa \"Códigos de Falha\" para ler e filtrar DTCs por sistema, "
-            "\"Dados em Tempo Real\" para monitorizar sensores ao vivo, e "
-            "\"Prontidão\" antes de uma inspeção."
-        )
-        hint.setWordWrap(True)
-        hint.setStyleSheet(
-            f"color: {TEXT_FAINT}; font-size: 12px; padding-top: 4px;"
-        )
-        layout.addWidget(hint)
-
-        layout.addStretch()
-
+        layout.addWidget(self.build_quick_actions())
         return wrapper
 
     def build_vehicle_card(self):
-
         card = QFrame()
-        card.setObjectName("vehicleCard")
-
-        card.setStyleSheet("""
-        #vehicleCard {
+        card.setObjectName("dashboardVehicle")
+        card.setStyleSheet(f"""
+        #dashboardVehicle {{
             background: qlineargradient(
                 x1:0, y1:0, x2:1, y2:0,
-                stop:0 rgba(34, 211, 201, 0.10),
-                stop:1 rgba(34, 211, 201, 0.02)
+                stop:0 rgba(34, 211, 201, 0.12),
+                stop:1 rgba(34, 211, 201, 0.025)
             );
-            border: 1px solid #1E2530;
-            border-radius: 12px;
-        }
+            border: 1px solid {CARD_BORDER};
+            border-radius: 16px;
+        }}
         """)
 
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(22, 18, 22, 18)
-        layout.setSpacing(6)
+        layout = QHBoxLayout(card)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(20)
+
+        identity = QVBoxLayout()
+        identity.setSpacing(4)
+
+        eyebrow = QLabel("VEÍCULO DETECTADO")
+        eyebrow.setStyleSheet(
+            f"font-size: 10px; font-weight: 800; color: {ACCENT}; "
+            "letter-spacing: 1.5px; background: transparent;"
+        )
 
         self.vehicle = QLabel("Veículo não identificado")
         self.vehicle.setStyleSheet(
-            "font-size: 21px; font-weight: 700; background: transparent;"
+            f"font-size: 22px; font-weight: 850; color: {TEXT}; background: transparent;"
         )
-        layout.addWidget(self.vehicle)
-
-        info_row = QHBoxLayout()
-        info_row.setSpacing(18)
 
         self.vin = QLabel("VIN  —")
         self.protocol = QLabel("Protocolo  —")
@@ -263,79 +262,195 @@ class Dashboard(QWidget):
 
         for label in (self.vin, self.protocol, self.voltage):
             label.setStyleSheet(
-                f"color: {TEXT_DIM}; font-size: 12px; background: transparent;"
+                f"font-size: 11px; color: {TEXT_DIM}; background: transparent;"
             )
-            info_row.addWidget(label)
 
-        info_row.addStretch()
-        layout.addLayout(info_row)
+        identity.addWidget(eyebrow)
+        identity.addWidget(self.vehicle)
+        identity.addSpacing(4)
 
+        details = QHBoxLayout()
+        details.setSpacing(18)
+        details.addWidget(self.vin)
+        details.addWidget(self.protocol)
+        details.addWidget(self.voltage)
+        details.addStretch()
+        identity.addLayout(details)
+
+        status = QVBoxLayout()
+        status.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        status.setSpacing(4)
+
+        self.connection_status = QLabel("LIGADO")
+        self.connection_status.setAlignment(Qt.AlignRight)
+        self.connection_status.setStyleSheet(
+            f"font-size: 11px; font-weight: 900; color: {SUCCESS}; "
+            "letter-spacing: 1.2px; background: transparent;"
+        )
+
+        self.session_info = QLabel("Sessão activa")
+        self.session_info.setAlignment(Qt.AlignRight)
+        self.session_info.setStyleSheet(
+            f"font-size: 11px; color: {TEXT_DIM}; background: transparent;"
+        )
+
+        status.addWidget(self.connection_status)
+        status.addWidget(self.session_info)
+
+        layout.addLayout(identity, 1)
+        layout.addLayout(status)
         return card
+
+    def build_quick_actions(self):
+        card = QFrame()
+        card.setObjectName("dashboardActions")
+        card.setStyleSheet(f"""
+        #dashboardActions {{
+            background: {CARD_BG};
+            border: 1px solid {CARD_BORDER};
+            border-radius: 14px;
+        }}
+        """)
+
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 18)
+        layout.setSpacing(10)
+
+        title = QLabel("DIAGNÓSTICO")
+        title.setStyleSheet(
+            f"font-size: 10px; font-weight: 800; color: {TEXT_DIM}; "
+            "letter-spacing: 1.5px; background: transparent;"
+        )
+        layout.addWidget(title)
+
+        grid = QGridLayout()
+        grid.setSpacing(10)
+
+        self.dtc_button = self.action_button(
+            "Códigos de Falha",
+            "Ler e analisar DTCs",
+            accent=DANGER,
+        )
+        self.live_button = self.action_button(
+            "Dados em Tempo Real",
+            "Monitorizar sensores e PIDs",
+            accent=ACCENT,
+        )
+        self.readiness_button = self.action_button(
+            "Prontidão",
+            "Verificar monitores OBD-II",
+            accent=SUCCESS,
+        )
+        self.connection_button = self.action_button(
+            "Alterar Ligação",
+            "Interface ou porta COM",
+            accent=WARNING,
+        )
+
+        grid.addWidget(self.dtc_button, 0, 0)
+        grid.addWidget(self.live_button, 0, 1)
+        grid.addWidget(self.readiness_button, 1, 0)
+        grid.addWidget(self.connection_button, 1, 1)
+
+        self.dtc_button.clicked.connect(self.goToDTC.emit)
+        self.live_button.clicked.connect(self.goToLiveData.emit)
+        self.readiness_button.clicked.connect(self.goToReadiness.emit)
+        self.connection_button.clicked.connect(self.goToConnection.emit)
+
+        layout.addLayout(grid)
+        return card
+
+    def action_button(self, title, description, accent=ACCENT):
+        button = QPushButton()
+        button.setCursor(Qt.PointingHandCursor)
+        button.setMinimumHeight(54)
+        button.setText(f"{title}\n{description}")
+        button.setStyleSheet(f"""
+        QPushButton {{
+            text-align: left;
+            padding: 8px 13px;
+            border-radius: 9px;
+            border: 1px solid {CARD_BORDER};
+            border-left: 3px solid {accent};
+            background: {CARD_BG};
+            color: {TEXT};
+            font-size: 12px;
+            font-weight: 700;
+        }}
+        QPushButton:hover {{
+            border-color: {accent};
+            background: rgba(255, 255, 255, 0.025);
+        }}
+        QPushButton:pressed {{
+            background: rgba(255, 255, 255, 0.045);
+        }}
+        """)
+        return button
 
     # ------------------------------------------------------------------
 
     def update_vehicle(self, vehicle):
+        vin = getattr(vehicle, "vin", None)
+        make = getattr(vehicle, "make", None)
+        model = getattr(vehicle, "model", None)
+        protocol = getattr(vehicle, "protocol", None)
+        voltage = getattr(vehicle, "battery_voltage", None)
 
-        if vehicle.vin:
-            self.vin.setText(f"VIN  {vehicle.vin}")
+        if make or model:
+            self.vehicle.setText(f"{make or ''} {model or ''}".strip())
+        elif vin:
+            self.vehicle.setText("Veículo identificado")
 
-        if vehicle.make:
-            self.vehicle.setText(
-                f"{vehicle.make} {vehicle.model or ''}".strip()
-            )
+        self.vin.setText(f"VIN  {vin}" if vin else "VIN  —")
+        self.protocol.setText(f"Protocolo  {protocol}" if protocol else "Protocolo  —")
 
-        if vehicle.protocol:
-            self.protocol.setText(f"Protocolo  {vehicle.protocol}")
-
-        if vehicle.battery_voltage is not None:
-            accent = DANGER if vehicle.battery_voltage < 11.5 else (
-                WARNING if vehicle.battery_voltage > 15.0 else TEXT_DIM
-            )
-            self.voltage.setText(f"Bateria  {vehicle.battery_voltage:g}V")
+        if voltage is not None:
+            accent = DANGER if voltage < 11.5 else WARNING if voltage > 15.0 else SUCCESS
+            self.voltage.setText(f"Bateria  {voltage:g} V")
             self.voltage.setStyleSheet(
-                f"color: {accent}; font-size: 12px; font-weight: 700; "
-                f"background: transparent;"
+                f"font-size: 11px; color: {accent}; font-weight: 800; background: transparent;"
             )
+            self.voltage_card.set_value(f"{voltage:g} V", accent=accent)
 
     def set_connection_state(self, state):
-
-        labels = {
-            "connected": "Ligado",
-            "connecting": "A ligar...",
-            "error": "Erro",
-            "disconnected": "Desligado",
+        states = {
+            "connected": ("LIGADO", "Sessão activa", SUCCESS),
+            "connecting": ("A LIGAR...", "A estabelecer comunicação", WARNING),
+            "error": ("ERRO", "Falha na ligação", DANGER),
+            "disconnected": ("SEM LIGAÇÃO", "Pronto para iniciar", TEXT_FAINT),
         }
+        status, info, color = states.get(state, states["disconnected"])
 
-        colors = {
-            "connected": SUCCESS,
-            "connecting": WARNING,
-            "error": DANGER,
-            "disconnected": TEXT_FAINT,
-        }
+        self.connected = state == "connected"
+        self.welcome_view.setVisible(not self.connected)
+        self.connected_view.setVisible(self.connected)
 
-        self.stack.setCurrentIndex(1 if state == "connected" else 0)
+        self.connection_status.setText(status)
+        self.connection_status.setStyleSheet(
+            f"font-size: 11px; font-weight: 900; color: {color}; "
+            "letter-spacing: 1.2px; background: transparent;"
+        )
+        self.session_info.setText(info)
+
+        self.connection_card.set_value(
+            "Ligado" if self.connected else status.title(),
+            accent=color,
+        )
 
         if state == "disconnected":
-            # limpa o resumo da sessão anterior para não mostrar
-            # valores "presos" de uma ligação já terminada
-            self.pids_card.set_value("—")
+            self.pids_card.set_value("—", accent=ACCENT)
             self.dtc_card.set_value("—", accent=TEXT_FAINT)
+            self.voltage_card.set_value("—", accent=TEXT_FAINT)
             self.vehicle.setText("Veículo não identificado")
             self.vin.setText("VIN  —")
             self.protocol.setText("Protocolo  —")
             self.voltage.setText("Bateria  —")
             self.voltage.setStyleSheet(
-                f"color: {TEXT_DIM}; font-size: 12px; background: transparent;"
+                f"font-size: 11px; color: {TEXT_DIM}; background: transparent;"
             )
 
-        self.connection_card.set_value(
-            labels.get(state, "Desligado"),
-            accent=colors.get(state, TEXT_FAINT)
-        )
-
     def set_modules_count(self, count):
-        self.pids_card.set_value(str(count))
+        self.pids_card.set_value(str(count), accent=ACCENT)
 
     def set_faults_count(self, count):
-        accent = DANGER if count else SUCCESS
-        self.dtc_card.set_value(str(count), accent=accent)
+        self.dtc_card.set_value(str(count), accent=DANGER if count else SUCCESS)
