@@ -20,10 +20,10 @@ from gui.styles import (
     TEXT,
     TEXT_DIM,
     TEXT_FAINT,
-    ACCENT,
     SUCCESS,
     WARNING,
-    DANGER
+    DANGER,
+    get_current_accent
 )
 
 
@@ -99,9 +99,11 @@ class StatusPill(QFrame):
 class StatCard(QFrame):
     """Cartão compacto com ícone, título e valor — usado no Dashboard."""
 
-    def __init__(self, icon, title, value="—", accent=ACCENT):
+    def __init__(self, icon, title, value="—", accent=None):
 
         super().__init__()
+
+        accent = accent or get_current_accent()
 
         self.setObjectName("statCard")
 
@@ -112,7 +114,7 @@ class StatCard(QFrame):
             border-radius: 12px;
         }}
         #statCard:hover {{
-            border-color: {ACCENT};
+            border-color: {accent};
         }}
         """)
 
@@ -427,9 +429,7 @@ class Gauge(QFrame):
         self.min_v = min_v if min_v is not None else 0
         self.max_v = max_v if max_v is not None else 100
         self.value = None
-        self.color = QColor(color or ACCENT)
-
-        self.setMinimumSize(150, 170)
+        self.color = QColor(color or get_current_accent())
         self.setStyleSheet(f"""
         Gauge {{
             background: {CARD_BG};
@@ -505,8 +505,7 @@ class LiveGraph(QFrame):
 
         self.title = title
         self.unit = unit
-        self.color = QColor(color or ACCENT)
-        self.values = []
+        self.color = QColor(color or get_current_accent())
         self.y_min = 0
         self.y_max = 100
 

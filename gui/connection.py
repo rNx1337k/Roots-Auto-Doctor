@@ -16,31 +16,49 @@ from services.vin_lookup import guess_make
 from protocols.obd2 import OBD2
 from core.vehicle import Vehicle
 from app.logger import Logger
-from app.config import DEFAULT_OBD_BAUDRATE, SERIAL_TIMEOUT
+from app.config import DEFAULT_OBD_BAUDRATE, SERIAL_TIMEOUT, BAUD_CANDIDATES
 from gui.widgets import StatusPill, page_header, empty_hint
-from gui.styles import CARD_BG, CARD_BORDER, TEXT_DIM, SUCCESS, WARNING, DANGER
+from gui.styles import (
+    CARD_BG, CARD_BORDER, TEXT_DIM, SUCCESS, WARNING, DANGER, get_settings
+)
+
+LAST_PORT_SETTINGS_KEY = "connection/last_port"
+LAST_BAUD_SETTINGS_KEY = "connection/last_baud"
 
 
 class IdentifyWorker(QThread):
-    """Faz a inicialização do ELM327 e a identificação do veículo
-    (protocolo, VIN, PIDs suportados) fora da thread da interface,
-    para a app nunca 'congelar' enquanto o adaptador responde."""
+    """Inicializa o ELM327 e identifica o veículo fora da UI."""
 
     finished_ok = Signal(object, dict)
     failed = Signal(str)
+    status = Signal(str)
 
-    def __init__(self, interface, logger):
-
+    def __init__(self, interface, logger, baudrate):
         super().__init__()
-
         self.interface = interface
         self.logger = logger
+        self.baudrate = baudrate
+        self._cancel = False
+
+    def cancel(self):
+        self._cancel = True
 
     def run(self):
-
         try:
+            if self._cancel:
+                return
+
+            baud = self._negotiate_baud()
+            if self._cancel:
+                return
+
+            self.status.emit(f"Adaptador a {baud} baud — a inicializar...")
+
             elm = ELM327(self.interface, logger=self.logger)
             elm.initialize()
+
+            if self._cancel:
+                return
 
             protocol_name = None
             try:
@@ -53,6 +71,9 @@ class IdentifyWorker(QThread):
             vin = None
             ecu_name = None
             supported = set()
+            voltage = None
+
+            self.status.emit("A ler VIN e PIDs suportados...")
 
             try:
                 vin = obd2.vin()
@@ -69,11 +90,13 @@ class IdentifyWorker(QThread):
             except Exception:
                 pass
 
-            voltage = None
             try:
                 voltage = elm.battery_voltage()
             except Exception:
                 pass
+
+            if self._cancel:
+                return
 
             info = {
                 "protocol_name": protocol_name,
@@ -82,6 +105,8 @@ class IdentifyWorker(QThread):
                 "supported_pid_count": len(supported),
                 "supported_pids": supported,
                 "battery_voltage": voltage,
+                "baudrate": baud,
+                "is_can": bool(getattr(elm, "is_can", False)),
             }
 
         except Exception as error:
@@ -90,20 +115,37 @@ class IdentifyWorker(QThread):
 
         self.finished_ok.emit(obd2, info)
 
+    def _negotiate_baud(self):
+        if self.baudrate:
+            self.interface.set_baudrate(self.baudrate)
+            return self.baudrate
+
+        last_error = None
+        for baud in BAUD_CANDIDATES:
+            if self._cancel:
+                break
+            try:
+                self.status.emit(f"A testar {baud} baud...")
+                self.interface.set_baudrate(baud)
+                elm = ELM327(self.interface, logger=self.logger)
+                if elm.probe():
+                    return baud
+            except Exception as error:
+                last_error = error
+                continue
+
+        if last_error:
+            raise last_error
+        return DEFAULT_OBD_BAUDRATE
+
 
 class ConnectionPage(QWidget):
 
-    # (estado, mensagem) -> "connected" | "connecting" | "disconnected" | "error"
     connectionChanged = Signal(str, str)
-
-    # (protocolo OBD2 ou None, informação do veículo dict)
     protocolReady = Signal(object, dict)
-
-    # linha de comunicação (AT/OBD), para a página de Registo
     logLine = Signal(str)
 
     def __init__(self):
-
         super().__init__()
 
         self.manager = ConnectionManager()
@@ -130,10 +172,8 @@ class ConnectionPage(QWidget):
         self.refresh_ports()
 
     def build_card(self):
-
         card = QFrame()
         card.setObjectName("card")
-
         card.setStyleSheet(f"""
         #card {{
             background: {CARD_BG};
@@ -159,6 +199,17 @@ class ConnectionPage(QWidget):
         self.ports = QComboBox()
         self.ports.setMinimumHeight(38)
         port_row.addWidget(self.ports, 1)
+
+        self.baud = QComboBox()
+        self.baud.setMinimumHeight(38)
+        self.baud.setMinimumWidth(130)
+        self.baud.setToolTip(
+            "Velocidade série. \"Auto\" testa 38400, 115200, 9600 e 57600."
+        )
+        self.baud.addItem("Auto", None)
+        for rate in BAUD_CANDIDATES:
+            self.baud.addItem(str(rate), rate)
+        port_row.addWidget(self.baud)
 
         refresh = QPushButton("Atualizar")
         refresh.setMinimumHeight(38)
@@ -190,7 +241,6 @@ class ConnectionPage(QWidget):
         action_row.addWidget(self.voltage_label)
 
         action_row.addStretch()
-
         layout.addLayout(action_row)
 
         self.status = QLabel("Sem ligação estabelecida.")
@@ -200,12 +250,20 @@ class ConnectionPage(QWidget):
         )
         layout.addWidget(self.status)
 
+        last_baud = get_settings().value(LAST_BAUD_SETTINGS_KEY, None)
+        if last_baud:
+            try:
+                last_baud = int(last_baud)
+            except (TypeError, ValueError):
+                last_baud = None
+            idx = self.baud.findData(last_baud)
+            if idx >= 0:
+                self.baud.setCurrentIndex(idx)
+
         return card
 
     def refresh_ports(self):
-
         self.ports.clear()
-
         ports = SerialInterface.ports()
 
         if not ports:
@@ -218,15 +276,19 @@ class ConnectionPage(QWidget):
                 port["device"]
             )
 
-    def toggle_connection(self):
+        last_port = get_settings().value(LAST_PORT_SETTINGS_KEY, None)
+        if last_port:
+            index = self.ports.findData(last_port)
+            if index >= 0:
+                self.ports.setCurrentIndex(index)
 
+    def toggle_connection(self):
         if self.manager.connected():
             self.disconnect()
         else:
             self.connect()
 
     def connect(self):
-
         device = self.ports.currentData()
 
         if not device:
@@ -236,15 +298,17 @@ class ConnectionPage(QWidget):
         self.connect_button.setEnabled(False)
         self.set_status("connecting", "A ligar ao adaptador...")
 
+        baud = self.baud.currentData()
+        initial_baud = baud or DEFAULT_OBD_BAUDRATE
+
         try:
             interface = SerialInterface(
                 device,
-                baudrate=DEFAULT_OBD_BAUDRATE,
+                baudrate=initial_baud,
                 timeout=SERIAL_TIMEOUT
             )
             self.manager.set_interface(interface)
             self.manager.connect()
-
         except Exception as error:
             self.set_status("error", f"Falha na ligação: {error}")
             self.connect_button.setEnabled(True)
@@ -252,18 +316,30 @@ class ConnectionPage(QWidget):
 
         self.set_status("connecting", "A identificar o veículo...")
 
-        self.identify_worker = IdentifyWorker(interface, self.logger)
+        self.identify_worker = IdentifyWorker(interface, self.logger, baud)
         self.identify_worker.finished_ok.connect(self.on_identified)
         self.identify_worker.failed.connect(self.on_identify_failed)
+        self.identify_worker.status.connect(
+            lambda msg: self.set_status("connecting", msg)
+        )
         self.identify_worker.start()
 
     def on_identified(self, obd2, info):
-
         self.connect_button.setEnabled(True)
         self.connect_button.setText("Desligar")
 
         device = self.ports.currentData()
-        message = f"Ligado via {device} — {info.get('protocol_name') or 'protocolo automático'}."
+        settings = get_settings()
+        settings.setValue(LAST_PORT_SETTINGS_KEY, device)
+        if info.get("baudrate"):
+            settings.setValue(LAST_BAUD_SETTINGS_KEY, int(info["baudrate"]))
+        settings.sync()
+
+        baud_txt = f" @ {info.get('baudrate')} baud" if info.get("baudrate") else ""
+        message = (
+            f"Ligado via {device}{baud_txt} — "
+            f"{info.get('protocol_name') or 'protocolo automático'}."
+        )
         self.set_status("connected", message)
         self.set_voltage(info.get("battery_voltage"))
 
@@ -280,35 +356,34 @@ class ConnectionPage(QWidget):
         self.protocolReady.emit(obd2, info)
 
     def on_identify_failed(self, message):
-
         self.connect_button.setEnabled(True)
-        self.connect_button.setText("Desligar")
+        self.connect_button.setText("Ligar")
+        self.manager.disconnect()
         self.set_status(
-            "connected",
-            f"Ligado ao adaptador, mas a identificação do veículo "
-            f"falhou: {message}\nConfirma que a chave está na "
-            f"posição \"Ignição\" e que a ficha OBD-II está bem "
-            f"encaixada, depois tenta ler os Códigos de Falha na "
-            f"mesma — pode funcionar mesmo assim."
+            "error",
+            f"Não foi possível identificar o veículo: {message}\n"
+            "Confirma a porta, a velocidade (tenta Auto) e que a chave "
+            "está na posição \"Ignição\"."
         )
         self.set_voltage(None)
         self.protocolReady.emit(None, {})
 
     def disconnect(self):
-
         if self.identify_worker and self.identify_worker.isRunning():
-            self.identify_worker.terminate()
-            self.identify_worker.wait(500)
+            self.identify_worker.cancel()
+            self.manager.disconnect()
+            self.identify_worker.wait(1500)
+            self.identify_worker = None
+        else:
+            self.manager.disconnect()
 
-        self.manager.disconnect()
-
+        self.connect_button.setEnabled(True)
         self.connect_button.setText("Ligar")
         self.set_status("disconnected", "Sem ligação estabelecida.")
         self.set_voltage(None)
         self.protocolReady.emit(None, {})
 
     def set_voltage(self, voltage):
-
         if voltage is None:
             self.voltage_label.setText("")
             return
@@ -327,10 +402,8 @@ class ConnectionPage(QWidget):
         )
 
     def set_status(self, state, message):
-
         self.status_pill.set_state(state)
         self.status.setText(message)
-
         self.connectionChanged.emit(state, message)
 
     def _on_log_line(self, line):

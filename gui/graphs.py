@@ -7,9 +7,11 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton
 )
+import time
 
 from gui.widgets import page_header, empty_hint, LiveGraph, page_with_gate
 from services.pid_database import get_pid
+from services.units import convert_for_display, convert_range
 from app.config import LIVE_DATA_INTERVAL
 
 # Painel fixo com os sensores mais úteis para acompanhar de relance
@@ -19,38 +21,62 @@ OVERVIEW_PIDS = [0x0C, 0x0D, 0x05, 0x11]
 
 class OverviewWorker(QThread):
     """Lê em ciclo contínuo os PIDs do painel de visão geral, num
-    thread próprio, para não bloquear a interface."""
+    thread próprio, para não bloquear a interface.
+
+    Usa o mesmo rate-limiting adaptativo do LiveDataWorker: só dorme
+    o tempo que falta para atingir o intervalo alvo."""
 
     sample = Signal(int, object, str)
     error = Signal(str)
 
     def __init__(self, protocol, pids, interval=LIVE_DATA_INTERVAL):
-
         super().__init__()
-
         self.protocol = protocol
-        self.pids = pids
-        self.interval = interval
+        self.pids = list(pids)
+        self.interval = max(0.02, float(interval))
         self._running = True
 
     def run(self):
+        adapter = getattr(self.protocol, "adapter", None)
+        if adapter is not None and hasattr(adapter, "set_fast_mode"):
+            try:
+                adapter.set_fast_mode(True)
+            except Exception:
+                pass
 
-        while self._running:
-
-            for pid in self.pids:
-
-                if not self._running:
-                    break
+        try:
+            while self._running:
+                t0 = time.monotonic()
 
                 try:
-                    value, unit = self.protocol.read_pid(pid)
+                    if hasattr(self.protocol, "read_pids"):
+                        values = self.protocol.read_pids(self.pids)
+                    else:
+                        values = {
+                            pid: self.protocol.read_pid(pid)
+                            for pid in self.pids
+                        }
                 except Exception as error:
                     self.error.emit(str(error))
+                    self.msleep(200)
                     continue
 
-                self.sample.emit(pid, value, unit or "")
+                for pid, pair in values.items():
+                    if not self._running:
+                        break
+                    value, unit = pair if pair else (None, "")
+                    self.sample.emit(pid, value, unit or "")
 
-            self.msleep(int(self.interval * 1000))
+                elapsed = time.monotonic() - t0
+                remaining_ms = int((self.interval - elapsed) * 1000)
+                if remaining_ms > 2:
+                    self.msleep(remaining_ms)
+        finally:
+            if adapter is not None and hasattr(adapter, "set_fast_mode"):
+                try:
+                    adapter.set_fast_mode(False)
+                except Exception:
+                    pass
 
     def stop(self):
         self._running = False
@@ -60,6 +86,8 @@ class GraphsPage(QWidget):
     """Painel com vários parâmetros ao vivo lado a lado — útil para um
     teste de estrada, sem teres de andar a trocar de parâmetro como na
     página 'Dados em Tempo Real'."""
+
+    streamStarted = Signal()
 
     def __init__(self):
 
@@ -117,9 +145,9 @@ class GraphsPage(QWidget):
             graph = LiveGraph(
                 title=entry["name"], unit=entry["unit"]
             )
-            graph.set_series(
-                entry["name"], entry["unit"], entry["min"], entry["max"]
-            )
+
+            min_v, max_v, unit = convert_range(entry["min"], entry["max"], entry["unit"])
+            graph.set_series(entry["name"], unit, min_v, max_v)
 
             self.graphs_by_pid[pid] = graph
             grid.addWidget(graph, index // 2, index % 2)
@@ -154,6 +182,8 @@ class GraphsPage(QWidget):
         if not self.protocol:
             return
 
+        self.streamStarted.emit()
+
         for graph in self.graphs_by_pid.values():
             graph.clear_series()
 
@@ -168,13 +198,15 @@ class GraphsPage(QWidget):
 
         if self.worker:
             self.worker.stop()
-            self.worker.wait(1500)
+            self.worker.wait(2000)
             self.worker = None
 
         self.start_button.setEnabled(self.protocol is not None)
         self.stop_button.setEnabled(False)
 
-    def on_sample(self, pid, value, _unit):
+    def on_sample(self, pid, value, unit):
+
+        value, _unit = convert_for_display(value, unit)
 
         graph = self.graphs_by_pid.get(pid)
 

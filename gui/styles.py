@@ -20,6 +20,8 @@ from typing import Optional
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor
 
+from app.config import SETTINGS_ORGANISATION, SETTINGS_APPLICATION
+
 
 # ============================================================================
 # PALETA BASE
@@ -75,8 +77,6 @@ _LAST_ACCENT = DEFAULT_ACCENT
 # SETTINGS
 # ============================================================================
 
-SETTINGS_ORGANISATION = "RootsAutoDoctor"
-SETTINGS_APPLICATION = "Roots Auto Doctor"
 ACCENT_SETTINGS_KEY = "appearance/accent"
 
 

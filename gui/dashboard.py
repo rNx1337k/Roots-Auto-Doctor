@@ -16,10 +16,11 @@ from gui.styles import (
     TEXT,
     TEXT_DIM,
     TEXT_FAINT,
-    ACCENT,
     SUCCESS,
     WARNING,
     DANGER,
+    get_current_accent,
+    get_theme_colors,
 )
 
 
@@ -37,6 +38,11 @@ class Dashboard(QWidget):
 
     def __init__(self):
         super().__init__()
+
+        # Resolvida uma vez à construção — reflete sempre o tema
+        # guardado pelo utilizador, em vez da cor de destaque fixa.
+        self._accent = get_current_accent()
+        self._colors = get_theme_colors(self._accent)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -78,8 +84,8 @@ class Dashboard(QWidget):
         #dashboardHero {{
             background: qlineargradient(
                 x1:0, y1:0, x2:1, y2:1,
-                stop:0 rgba(34, 211, 201, 0.15),
-                stop:0.55 rgba(34, 211, 201, 0.055),
+                stop:0 {self._colors["accent_soft"]},
+                stop:0.55 {self._colors["accent_soft_light"]},
                 stop:1 rgba(20, 25, 32, 0.95)
             );
             border: 1px solid {CARD_BORDER};
@@ -95,8 +101,8 @@ class Dashboard(QWidget):
         mark.setFixedSize(62, 62)
         mark.setStyleSheet(f"""
         QFrame {{
-            background: rgba(34, 211, 201, 0.12);
-            border: 1px solid rgba(34, 211, 201, 0.35);
+            background: {self._colors["accent_soft"]};
+            border: 1px solid {self._colors["accent_border"]};
             border-radius: 16px;
         }}
         """)
@@ -105,7 +111,7 @@ class Dashboard(QWidget):
         mark_label = QLabel("RAD")
         mark_label.setAlignment(Qt.AlignCenter)
         mark_label.setStyleSheet(
-            f"font-size: 15px; font-weight: 900; color: {ACCENT}; "
+            f"font-size: 15px; font-weight: 900; color: {self._accent}; "
             "letter-spacing: 1px; background: transparent;"
         )
         mark_layout.addWidget(mark_label)
@@ -115,7 +121,7 @@ class Dashboard(QWidget):
 
         eyebrow = QLabel("DIAGNÓSTICO AUTOMÓVEL")
         eyebrow.setStyleSheet(
-            f"font-size: 10px; font-weight: 800; color: {ACCENT}; "
+            f"font-size: 10px; font-weight: 800; color: {self._accent}; "
             "letter-spacing: 1.8px; background: transparent;"
         )
 
@@ -175,7 +181,7 @@ class Dashboard(QWidget):
 
             number_label = QLabel(number)
             number_label.setStyleSheet(
-                f"font-size: 10px; font-weight: 900; color: {ACCENT}; "
+                f"font-size: 10px; font-weight: 900; color: {self._accent}; "
                 "background: transparent;"
             )
             heading_label = QLabel(heading)
@@ -212,7 +218,7 @@ class Dashboard(QWidget):
         cards_row.setSpacing(12)
 
         self.connection_card = StatCard("LINK", "Estado da Ligação", "Ligado", accent=SUCCESS)
-        self.pids_card = StatCard("PID", "PIDs Suportados", "—", accent=ACCENT)
+        self.pids_card = StatCard("PID", "PIDs Suportados", "—", accent=self._accent)
         self.dtc_card = StatCard("DTC", "Códigos de Falha", "—", accent=TEXT_FAINT)
         self.voltage_card = StatCard("V", "Tensão da Bateria", "—", accent=TEXT_FAINT)
 
@@ -230,8 +236,8 @@ class Dashboard(QWidget):
         #dashboardVehicle {{
             background: qlineargradient(
                 x1:0, y1:0, x2:1, y2:0,
-                stop:0 rgba(34, 211, 201, 0.12),
-                stop:1 rgba(34, 211, 201, 0.025)
+                stop:0 {self._colors["accent_soft"]},
+                stop:1 {self._colors["accent_soft_light"]}
             );
             border: 1px solid {CARD_BORDER};
             border-radius: 16px;
@@ -247,7 +253,7 @@ class Dashboard(QWidget):
 
         eyebrow = QLabel("VEÍCULO DETECTADO")
         eyebrow.setStyleSheet(
-            f"font-size: 10px; font-weight: 800; color: {ACCENT}; "
+            f"font-size: 10px; font-weight: 800; color: {self._accent}; "
             "letter-spacing: 1.5px; background: transparent;"
         )
 
@@ -334,7 +340,7 @@ class Dashboard(QWidget):
         self.live_button = self.action_button(
             "Dados em Tempo Real",
             "Monitorizar sensores e PIDs",
-            accent=ACCENT,
+            accent=self._accent,
         )
         self.readiness_button = self.action_button(
             "Prontidão",
@@ -360,7 +366,8 @@ class Dashboard(QWidget):
         layout.addLayout(grid)
         return card
 
-    def action_button(self, title, description, accent=ACCENT):
+    def action_button(self, title, description, accent=None):
+        accent = accent or self._accent
         button = QPushButton()
         button.setCursor(Qt.PointingHandCursor)
         button.setMinimumHeight(54)
@@ -438,7 +445,7 @@ class Dashboard(QWidget):
         )
 
         if state == "disconnected":
-            self.pids_card.set_value("—", accent=ACCENT)
+            self.pids_card.set_value("—", accent=self._accent)
             self.dtc_card.set_value("—", accent=TEXT_FAINT)
             self.voltage_card.set_value("—", accent=TEXT_FAINT)
             self.vehicle.setText("Veículo não identificado")
@@ -450,7 +457,7 @@ class Dashboard(QWidget):
             )
 
     def set_modules_count(self, count):
-        self.pids_card.set_value(str(count), accent=ACCENT)
+        self.pids_card.set_value(str(count), accent=self._accent)
 
     def set_faults_count(self, count):
         self.dtc_card.set_value(str(count), accent=DANGER if count else SUCCESS)

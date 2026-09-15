@@ -46,10 +46,6 @@ clear as the professional scanners, without the professional price tag.
 | 🧾 **Communication log** | Every request/response with the ECU, timestamped, for troubleshooting |
 | ⬇️ **CSV export** | Export a fault-code report to share or archive |
 
-## 🖥️ Screenshots
-
-> _Add a screenshot or GIF of the Dashboard / Live Data pages here once you
-> have one — it's the single biggest thing that makes a README "pop"._
 
 ## 🚀 Getting Started
 
@@ -77,17 +73,6 @@ python main.py
 3. Open **Ligação**, pick the adapter's COM port, and hit **Ligar**.
 4. Once connected, use **Códigos de Falha**, **Dados em Tempo Real** and **Prontidão** to diagnose.
 
-## 🧠 How it works
-
-```
-GUI (PySide6)  →  OBD2 protocol layer  →  ELM327 driver  →  Serial (COM port)  →  Vehicle ECU
-```
-
-- `hardware/` — low-level adapter communication (serial + ELM327 AT commands)
-- `protocols/` — OBD-II (SAE J1979) request/response logic and PID decoding
-- `services/` — DTC & PID databases, VIN → manufacturer lookup, session export
-- `core/` — plain data models (Vehicle, DTC, ECU, Session)
-- `gui/` — the PySide6 interface, one module per page
 
 ## 🗺️ Roadmap
 

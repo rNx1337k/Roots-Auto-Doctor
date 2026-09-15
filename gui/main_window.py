@@ -9,7 +9,8 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QFrame,
     QButtonGroup,
-    QGraphicsOpacityEffect
+    QGraphicsOpacityEffect,
+    QMessageBox
 )
 
 from gui.dashboard import Dashboard
@@ -22,7 +23,8 @@ from gui.graphs import GraphsPage
 from gui.logs import LogsPage
 from gui.widgets import StatusPill, SectionLabel
 from gui.styles import (
-    BG_SIDEBAR, BG_TOPBAR, TEXT, TEXT_DIM, TEXT_FAINT, ACCENT, DIVIDER
+    BG_SIDEBAR, BG_TOPBAR, TEXT, TEXT_DIM, TEXT_FAINT, DIVIDER,
+    get_current_accent, get_settings
 )
 from app.config import APP_VERSION
 
@@ -65,6 +67,45 @@ class MainWindow(QMainWindow):
 
         self.build()
 
+    def closeEvent(self, event):
+
+        settings = get_settings()
+        confirm = settings.value("preferences/confirm_exit", True)
+
+        if isinstance(confirm, str):
+            confirm = confirm.lower() in ("1", "true", "yes", "on")
+
+        if not confirm:
+            self._shutdown_session()
+            event.accept()
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Fechar Roots Auto Doctor",
+            "Tens a certeza que queres fechar a aplicação?\n"
+            "Qualquer ligação ativa ao veículo será terminada.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if answer == QMessageBox.Yes:
+            self._shutdown_session()
+            event.accept()
+        else:
+            event.ignore()
+
+    def _shutdown_session(self):
+        try:
+            self.live_data_page.stop_stream()
+        except Exception:
+            pass
+        try:
+            self.graphs_page.stop_stream()
+        except Exception:
+            pass
+        self.connection_page.disconnect()
+
     def build(self):
 
         central = QWidget()
@@ -92,6 +133,8 @@ class MainWindow(QMainWindow):
         self.dtc_page.dtcsChanged.connect(
             self.dashboard_page.set_faults_count
         )
+        self.live_data_page.streamStarted.connect(self.graphs_page.stop_stream)
+        self.graphs_page.streamStarted.connect(self.live_data_page.stop_stream)
 
         # Qualquer página bloqueada por falta de ligação leva o
         # utilizador diretamente à página de Ligação.
@@ -100,6 +143,9 @@ class MainWindow(QMainWindow):
             page.gate.goToConnection.connect(self.go_to_connection)
 
         self.dashboard_page.goToConnection.connect(self.go_to_connection)
+        self.dashboard_page.goToDTC.connect(lambda: self.go_to(2))
+        self.dashboard_page.goToLiveData.connect(lambda: self.go_to(3))
+        self.dashboard_page.goToReadiness.connect(lambda: self.go_to(4))
 
         self.nav_group.button(0).setChecked(True)
         self.on_nav_changed(0)
@@ -128,7 +174,7 @@ class MainWindow(QMainWindow):
 
         tagline = QLabel("AUTO DOCTOR · ECU SCAN")
         tagline.setStyleSheet(
-            f"font-size: 10px; font-weight: 700; color: {ACCENT}; "
+            f"font-size: 10px; font-weight: 700; color: {get_current_accent()}; "
             f"letter-spacing: 2px; padding-left: 2px;"
         )
 
@@ -265,6 +311,11 @@ class MainWindow(QMainWindow):
 
         self._animate_page_in()
 
+    def go_to(self, index):
+
+        self.nav_group.button(index).setChecked(True)
+        self.on_nav_changed(index)
+
     def go_to_connection(self):
 
         self.nav_group.button(7).setChecked(True)
@@ -296,7 +347,7 @@ class MainWindow(QMainWindow):
         info = info or {}
 
         self.dtc_page.set_protocol(protocol, info)
-        self.live_data_page.set_protocol(protocol)
+        self.live_data_page.set_protocol(protocol, info)
         self.readiness_page.set_protocol(protocol)
         self.modules_page.set_protocol(protocol, info)
         self.graphs_page.set_protocol(protocol)

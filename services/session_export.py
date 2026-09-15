@@ -51,3 +51,29 @@ def export_session_json(path, vehicle, dtcs, live_snapshot=None):
 
     with open(path, "w", encoding="utf-8") as file:
         json.dump(data, file, indent=2, ensure_ascii=False)
+
+
+def export_live_data_csv(path, samples):
+    """Exporta uma gravação de Dados em Tempo Real para CSV.
+
+    'samples' é uma lista de dicts com as chaves:
+        tempo (str), parametro (str), valor, unidade (str)
+    tal como acumulados durante uma sessão de leitura ao vivo.
+    """
+
+    with open(path, "w", newline="", encoding="utf-8") as file:
+
+        writer = csv.writer(file)
+
+        writer.writerow(["Roots Auto Doctor — Gravação de Dados em Tempo Real"])
+        writer.writerow(["Gerado em", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+        writer.writerow([])
+        writer.writerow(["Tempo", "Parâmetro", "Valor", "Unidade"])
+
+        for sample in samples:
+            writer.writerow([
+                sample.get("tempo"),
+                sample.get("parametro"),
+                sample.get("valor"),
+                sample.get("unidade"),
+            ])

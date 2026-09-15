@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
     QCheckBox,
+    QApplication,
 )
 
 from gui.connection import ConnectionPage
@@ -223,7 +224,16 @@ class AppearancePage(QWidget):
         # --------------------------------------------------------------
 
         actions = QHBoxLayout()
-        actions.addStretch()
+
+        restart_hint = QLabel(
+            "Alguns elementos (dashboard, mostradores) só refletem "
+            "a nova cor por completo depois de reiniciares a app."
+        )
+        restart_hint.setWordWrap(True)
+        restart_hint.setStyleSheet(
+            f"color: {TEXT_FAINT}; font-size: 11px;"
+        )
+        actions.addWidget(restart_hint, 1)
 
         self.reset_button = QPushButton(
             "Restaurar predefinições"
@@ -356,16 +366,6 @@ class AppearancePage(QWidget):
 
         accent = accent.upper()
 
-        app = self.window().windowHandle()
-
-        del app
-
-        application = self.parentWidget()
-
-        del application
-
-        from PySide6.QtWidgets import QApplication
-
         qapp = QApplication.instance()
 
         if qapp is not None:
@@ -463,8 +463,6 @@ class AppearancePage(QWidget):
     # ------------------------------------------------------------------
 
     def reset_defaults(self):
-
-        from PySide6.QtWidgets import QApplication
 
         app = QApplication.instance()
 

@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from gui.widgets import page_header, empty_hint, page_with_gate
-from gui.styles import CARD_BG, CARD_BORDER, TEXT, TEXT_DIM, TEXT_FAINT, ACCENT
+from gui.styles import CARD_BG, CARD_BORDER, TEXT, TEXT_DIM, TEXT_FAINT
 
 
 class InfoTile(QFrame):
