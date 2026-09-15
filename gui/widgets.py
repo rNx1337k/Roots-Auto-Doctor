@@ -3,6 +3,8 @@ Componentes reutilizáveis usados em várias páginas
 (pill de estado de ligação, cartões de estatística, cabeçalho de página).
 """
 
+import math
+
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, Signal
 from PySide6.QtWidgets import (
     QWidget,
@@ -103,7 +105,9 @@ class StatCard(QFrame):
 
         super().__init__()
 
-        accent = accent or get_current_accent()
+        self._accent = accent or get_current_accent()
+        self._value_accent = self._accent
+        self._value_uses_base = True
 
         self.setObjectName("statCard")
 
@@ -114,7 +118,7 @@ class StatCard(QFrame):
             border-radius: 12px;
         }}
         #statCard:hover {{
-            border-color: {accent};
+            border-color: {self._accent};
         }}
         """)
 
@@ -126,9 +130,10 @@ class StatCard(QFrame):
         top.setSpacing(10)
 
         icon_holder = QFrame()
+        icon_holder.setObjectName("statIconHolder")
         icon_holder.setFixedSize(34, 34)
         icon_holder.setStyleSheet(f"""
-        background: rgba(34, 211, 201, 0.12);
+        background: {self._accent_rgba(0.12)};
         border-radius: 9px;
         """)
         icon_holder_layout = QVBoxLayout(icon_holder)
@@ -154,17 +159,52 @@ class StatCard(QFrame):
 
         self.value_label = QLabel(value)
         self.value_label.setStyleSheet(
-            f"font-size: 24px; font-weight: 800; color: {accent}; "
+            f"font-size: 24px; font-weight: 800; color: {self._value_accent}; "
             f"background: transparent;"
         )
 
         outer.addWidget(self.value_label)
 
+    def _accent_rgba(self, alpha):
+        color = QColor(self._accent)
+        return (
+            f"rgba({color.red()}, {color.green()}, "
+            f"{color.blue()}, {alpha})"
+        )
+
+    def refresh_theme(self, accent=None):
+        self._accent = accent or get_current_accent()
+        if self._value_uses_base:
+            self._value_accent = self._accent
+        self.setStyleSheet(f"""
+        #statCard {{
+            background: {CARD_BG};
+            border: 1px solid {CARD_BORDER};
+            border-radius: 12px;
+        }}
+        #statCard:hover {{
+            border-color: {self._accent};
+        }}
+        """)
+        self.value_label.setStyleSheet(
+            f"font-size: 24px; font-weight: 800; color: {self._value_accent}; "
+            "background: transparent;"
+        )
+        # O fundo do ícone é local ao componente.
+        for child in self.findChildren(QFrame):
+            if child.objectName() == "statIconHolder":
+                child.setStyleSheet(
+                    f"background: {self._accent_rgba(0.12)}; "
+                    "border-radius: 9px;"
+                )
+
     def set_value(self, value, accent=None):
 
-        self.value_label.setText(value)
+        self.value_label.setText(str(value))
 
         if accent:
+            self._value_accent = accent
+            self._value_uses_base = False
             self.value_label.setStyleSheet(
                 f"font-size: 22px; font-weight: 700; color: {accent}; "
                 f"background: transparent;"
@@ -438,8 +478,22 @@ class Gauge(QFrame):
         }}
         """)
 
+    def refresh_theme(self, accent=None):
+        if accent:
+            self.color = QColor(accent)
+        else:
+            self.color = QColor(get_current_accent())
+        self.update()
+
     def set_value(self, value):
-        self.value = value
+        if value is None:
+            self.value = None
+        else:
+            try:
+                numeric = float(value)
+                self.value = numeric if math.isfinite(numeric) else None
+            except (TypeError, ValueError):
+                self.value = None
         self.update()
 
     def paintEvent(self, event):
@@ -508,6 +562,7 @@ class LiveGraph(QFrame):
         self.color = QColor(color or get_current_accent())
         self.y_min = 0
         self.y_max = 100
+        self.values = []
 
         self.setMinimumHeight(220)
         self.setStyleSheet(f"""
@@ -517,6 +572,13 @@ class LiveGraph(QFrame):
             border-radius: 12px;
         }}
         """)
+
+    def refresh_theme(self, accent=None):
+        if accent:
+            self.color = QColor(accent)
+        else:
+            self.color = QColor(get_current_accent())
+        self.update()
 
     def set_series(self, title, unit, y_min, y_max, color=None):
 
@@ -536,7 +598,15 @@ class LiveGraph(QFrame):
         if value is None:
             return
 
-        self.values.append(float(value))
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return
+
+        if not math.isfinite(numeric):
+            return
+
+        self.values.append(numeric)
 
         if len(self.values) > self.MAX_POINTS:
             self.values.pop(0)

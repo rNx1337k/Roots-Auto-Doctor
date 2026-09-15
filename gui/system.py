@@ -226,8 +226,7 @@ class AppearancePage(QWidget):
         actions = QHBoxLayout()
 
         restart_hint = QLabel(
-            "Alguns elementos (dashboard, mostradores) só refletem "
-            "a nova cor por completo depois de reiniciares a app."
+            "A nova cor é aplicada imediatamente à interface."
         )
         restart_hint.setWordWrap(True)
         restart_hint.setStyleSheet(
@@ -437,11 +436,13 @@ class AppearancePage(QWidget):
                 ACCENT
             )
 
+        text_color = "#06181A" if color.lightness() > 135 else "#FFFFFF"
+
         self.custom_button.setStyleSheet(
             f"""
             QPushButton {{
                 background: {color.name()};
-                color: white;
+                color: {text_color};
                 border: none;
                 border-radius: 8px;
                 padding: 8px 16px;

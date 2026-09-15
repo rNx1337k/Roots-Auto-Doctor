@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QCoreApplication
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -10,7 +10,9 @@ from PySide6.QtWidgets import (
     QFrame,
     QButtonGroup,
     QGraphicsOpacityEffect,
-    QMessageBox
+    QMessageBox,
+    QDialog,
+    QProgressBar
 )
 
 from gui.dashboard import Dashboard
@@ -64,47 +66,195 @@ class MainWindow(QMainWindow):
 
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
+        self._closing = False
+        self._page_animation = None
 
         self.build()
 
+    def _is_vehicle_connected(self):
+        """Devolve True quando existe uma ligação física ativa ao adaptador."""
+        connection = getattr(self, "connection_page", None)
+        manager = getattr(connection, "manager", None)
+        connected = getattr(manager, "connected", None)
+
+        try:
+            return bool(connected()) if callable(connected) else False
+        except Exception:
+            return False
+
+    def _show_close_confirmation(self):
+        """Diálogo de confirmação com o mesmo aspeto da aplicação."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Fechar Roots Auto Doctor")
+        dialog.setModal(True)
+        dialog.setFixedWidth(460)
+        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background: {BG_TOPBAR};
+                color: {TEXT};
+            }}
+            QPushButton {{
+                min-height: 38px;
+                padding: 0 18px;
+                border-radius: 8px;
+                border: 1px solid {DIVIDER};
+                background: {BG_SIDEBAR};
+                color: {TEXT};
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                border-color: {get_current_accent()};
+            }}
+            QPushButton#closeConfirmButton {{
+                background: {get_current_accent()};
+                color: white;
+                border: none;
+            }}
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(28, 26, 28, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Fechar Roots Auto Doctor")
+        title.setStyleSheet(f"font-size: 18px; font-weight: 800; color: {TEXT};")
+        layout.addWidget(title)
+
+        message = QLabel(
+            "Tens a certeza que queres fechar a aplicação?\n\n"
+            "A ligação ao veículo e qualquer monitorização ativa serão terminadas com segurança."
+        )
+        message.setWordWrap(True)
+        message.setStyleSheet(f"font-size: 12px; color: {TEXT_DIM}; line-height: 1.4;")
+        layout.addWidget(message)
+        layout.addSpacing(8)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+
+        cancel = QPushButton("Cancelar")
+        cancel.setCursor(Qt.PointingHandCursor)
+        cancel.clicked.connect(dialog.reject)
+
+        confirm = QPushButton("Fechar aplicação")
+        confirm.setObjectName("closeConfirmButton")
+        confirm.setCursor(Qt.PointingHandCursor)
+        confirm.setDefault(True)
+        confirm.clicked.connect(dialog.accept)
+
+        buttons.addWidget(cancel)
+        buttons.addWidget(confirm)
+        layout.addLayout(buttons)
+
+        return dialog.exec() == QDialog.Accepted
+
+    def _show_shutdown_dialog(self):
+        """Mostra feedback visual enquanto os recursos são libertados."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("A encerrar")
+        dialog.setModal(False)
+        dialog.setFixedWidth(380)
+        dialog.setWindowFlags(
+            Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint
+        )
+        dialog.setStyleSheet(f"""
+            QDialog {{ background: {BG_TOPBAR}; color: {TEXT}; }}
+            QProgressBar {{
+                border: none;
+                border-radius: 4px;
+                background: {BG_SIDEBAR};
+                height: 7px;
+                text-align: center;
+            }}
+            QProgressBar::chunk {{
+                background: {get_current_accent()};
+                border-radius: 4px;
+            }}
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(26, 24, 26, 24)
+        layout.setSpacing(10)
+
+        title = QLabel("A encerrar Roots Auto Doctor")
+        title.setStyleSheet(f"font-size: 16px; font-weight: 800; color: {TEXT};")
+        layout.addWidget(title)
+
+        status = QLabel("A preparar o encerramento...")
+        status.setStyleSheet(f"font-size: 12px; color: {TEXT_DIM};")
+        status.setWordWrap(True)
+        layout.addWidget(status)
+
+        progress = QProgressBar()
+        progress.setRange(0, 0)
+        progress.setTextVisible(False)
+        layout.addWidget(progress)
+
+        dialog.show()
+        QCoreApplication.processEvents()
+        return dialog, status
+
     def closeEvent(self, event):
+        """Fecha a aplicação de forma controlada e segura."""
+        if self._closing:
+            event.ignore()
+            return
 
         settings = get_settings()
         confirm = settings.value("preferences/confirm_exit", True)
-
         if isinstance(confirm, str):
-            confirm = confirm.lower() in ("1", "true", "yes", "on")
+            confirm = confirm.strip().lower() in ("1", "true", "yes", "on")
+        else:
+            confirm = bool(confirm)
 
-        if not confirm:
-            self._shutdown_session()
-            event.accept()
+        if confirm and not self._show_close_confirmation():
+            event.ignore()
             return
 
-        answer = QMessageBox.question(
-            self,
-            "Fechar Roots Auto Doctor",
-            "Tens a certeza que queres fechar a aplicação?\n"
-            "Qualquer ligação ativa ao veículo será terminada.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
+        self._closing = True
+        shutdown_dialog = None
 
-        if answer == QMessageBox.Yes:
-            self._shutdown_session()
-            event.accept()
-        else:
-            event.ignore()
+        try:
+            shutdown_dialog, status = self._show_shutdown_dialog()
+            self._shutdown_session(status.setText)
+        except Exception as error:
+            print(f"[Roots Auto Doctor] Erro no encerramento: {error}")
+        finally:
+            if shutdown_dialog is not None:
+                shutdown_dialog.close()
 
-    def _shutdown_session(self):
-        try:
-            self.live_data_page.stop_stream()
-        except Exception:
-            pass
-        try:
-            self.graphs_page.stop_stream()
-        except Exception:
-            pass
-        self.connection_page.disconnect()
+        event.accept()
+
+    def _shutdown_session(self, update_status=None):
+        """Para monitorizações e fecha a ligação sem deixar a UI bloqueada."""
+        def update(text):
+            if update_status:
+                update_status(text)
+                QCoreApplication.processEvents()
+
+        update("A terminar monitorizações ativas...")
+        for page in (
+            getattr(self, "live_data_page", None),
+            getattr(self, "graphs_page", None),
+        ):
+            stop = getattr(page, "stop_stream", None)
+            if callable(stop):
+                try:
+                    stop()
+                except Exception as error:
+                    print(f"[Roots Auto Doctor] Erro ao parar stream: {error}")
+
+        connection = getattr(self, "connection_page", None)
+        disconnect = getattr(connection, "disconnect", None)
+        if callable(disconnect):
+            update("A terminar a ligação ao veículo...")
+            try:
+                disconnect()
+            except Exception as error:
+                print(f"[Roots Auto Doctor] Erro ao desligar OBD: {error}")
+
+        update("A libertar recursos...")
 
     def build(self):
 
@@ -129,6 +279,9 @@ class MainWindow(QMainWindow):
         )
         self.connection_page.logLine.connect(
             self.logs_page.append_line
+        )
+        self.system_page.appearance_page.accent_changed.connect(
+            self.on_theme_changed
         )
         self.dtc_page.dtcsChanged.connect(
             self.dashboard_page.set_faults_count
@@ -173,6 +326,7 @@ class MainWindow(QMainWindow):
         )
 
         tagline = QLabel("AUTO DOCTOR · ECU SCAN")
+        self.sidebar_tagline = tagline
         tagline.setStyleSheet(
             f"font-size: 10px; font-weight: 700; color: {get_current_accent()}; "
             f"letter-spacing: 2px; padding-left: 2px;"
@@ -325,16 +479,52 @@ class MainWindow(QMainWindow):
     def _animate_page_in(self):
 
         current = self.pages.currentWidget()
+        if current is None:
+            return
 
-        effect = QGraphicsOpacityEffect(current)
+        # A QGraphicsEffect becomes owned by the widget when assigned with
+        # setGraphicsEffect(). Never call deleteLater() on the previous
+        # effect: Qt may already have destroyed its C++ object when the
+        # effect was replaced, leaving a dangling Shiboken wrapper.
+        if self._page_animation is not None:
+            self._page_animation.stop()
+            self._page_animation = None
+
+        # Remove any effect currently attached to this page before creating
+        # a new one. Qt handles the lifetime of the previous effect.
+        if current.graphicsEffect() is not None:
+            current.setGraphicsEffect(None)
+
+        effect = QGraphicsOpacityEffect()
         current.setGraphicsEffect(effect)
 
-        self._page_animation = QPropertyAnimation(effect, b"opacity")
-        self._page_animation.setDuration(220)
-        self._page_animation.setStartValue(0.0)
-        self._page_animation.setEndValue(1.0)
-        self._page_animation.setEasingCurve(QEasingCurve.OutCubic)
-        self._page_animation.start()
+        animation = QPropertyAnimation(effect, b"opacity", self)
+        animation.setDuration(180)
+        animation.setStartValue(0.0)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.OutCubic)
+
+        def finish_animation():
+            # Only clear the effect if this animation still owns the effect
+            # currently attached to this page. This prevents an older
+            # animation from removing a newer effect after rapid navigation.
+            if current.graphicsEffect() is effect:
+                current.setGraphicsEffect(None)
+            if self._page_animation is animation:
+                self._page_animation = None
+
+        animation.finished.connect(finish_animation)
+        self._page_animation = animation
+        animation.start()
+
+    def on_theme_changed(self, accent):
+        """Mantém componentes que guardam estado visual sincronizados."""
+        accent = get_current_accent()
+        self.sidebar_tagline.setStyleSheet(
+            f"font-size: 10px; font-weight: 700; color: {accent}; "
+            "letter-spacing: 2px; padding-left: 2px;"
+        )
+        self.dashboard_page.refresh_theme(accent)
 
     def on_connection_changed(self, state, message):
 

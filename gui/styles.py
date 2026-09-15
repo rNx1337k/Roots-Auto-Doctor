@@ -229,6 +229,7 @@ def build_app_style(accent: Optional[str] = None) -> str:
     accent_hover = colors["accent_hover"]
     accent_pressed = colors["accent_pressed"]
     accent_soft = colors["accent_soft"]
+    contrast = "#06181A" if QColor(accent).lightness() > 135 else "#FFFFFF"
 
     return f"""
 /* =========================================================================
@@ -270,11 +271,11 @@ QPushButton {{
 
 QPushButton:hover {{
     background: {CARD_BG_HOVER};
-    border-color: #2E3542;
+    border-color: {CARD_BG_HOVER};
 }}
 
 QPushButton:pressed {{
-    background: #0F1217;
+    background: {BG};
 }}
 
 QPushButton:disabled {{
@@ -288,7 +289,7 @@ QPushButton:disabled {{
 QPushButton#primaryButton {{
     background: {accent};
     border: 1px solid {accent};
-    color: #06181A;
+    color: {contrast};
 }}
 
 QPushButton#primaryButton:hover {{
@@ -316,7 +317,7 @@ QPushButton#dangerButton {{
 }}
 
 QPushButton#dangerButton:hover {{
-    background: rgba(255, 92, 108, 0.12);
+    background: {_rgba(DANGER, 0.12)};
 }}
 
 
@@ -379,7 +380,7 @@ QComboBox {{
     border-radius: 8px;
     padding: 8px 10px;
     selection-background-color: {accent};
-    selection-color: #06181A;
+    selection-color: {contrast};
 }}
 
 QLineEdit:focus,
@@ -597,6 +598,30 @@ QLabel {{
 
 
 # ============================================================================
+# ACTUALIZAÇÃO DINÂMICA DOS WIDGETS
+# ============================================================================
+
+def refresh_theme_widgets(app, old_accent: Optional[str], new_accent: Optional[str]) -> None:
+    """Pede aos componentes que mantêm cores em estado local que se actualizem."""
+    if app is None:
+        return
+
+    new = normalize_accent(new_accent)
+    if normalize_accent(old_accent) == new:
+        return
+
+    for widget in app.allWidgets():
+        refresh = getattr(widget, "refresh_theme", None)
+        if callable(refresh):
+            try:
+                refresh(new)
+            except TypeError:
+                refresh()
+            except Exception:
+                # A mudança de tema nunca deve interromper a aplicação.
+                pass
+
+
 # APPLY THEME
 # ============================================================================
 
@@ -617,10 +642,16 @@ def apply_theme(app, accent: Optional[str]) -> str:
         return DEFAULT_ACCENT
 
     accent = normalize_accent(accent)
+    previous = normalize_accent(
+        app.property("rootsAccent") or _LAST_ACCENT
+    )
 
     app.setStyleSheet(
         build_app_style(accent)
     )
+
+    if previous != accent:
+        refresh_theme_widgets(app, previous, accent)
 
     # Estado global acessível por qualquer widget.
     app.setProperty(
@@ -712,7 +743,17 @@ def is_custom_theme(accent: Optional[str] = None) -> bool:
 
 
 def get_current_accent() -> str:
-    """Obtém a cor actualmente guardada."""
+    """Obtém o accent actualmente activo, incluindo alterações em runtime."""
+    try:
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is not None:
+            runtime_accent = app.property("rootsAccent")
+            if runtime_accent:
+                return normalize_accent(runtime_accent)
+    except Exception:
+        pass
 
     return get_saved_accent()
 

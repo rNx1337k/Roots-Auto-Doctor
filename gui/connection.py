@@ -369,13 +369,18 @@ class ConnectionPage(QWidget):
         self.protocolReady.emit(None, {})
 
     def disconnect(self):
-        if self.identify_worker and self.identify_worker.isRunning():
-            self.identify_worker.cancel()
+        worker = self.identify_worker
+
+        if worker and worker.isRunning():
+            worker.cancel()
+            # Fechar a porta força leituras seriais pendentes a terminar.
             self.manager.disconnect()
-            self.identify_worker.wait(1500)
-            self.identify_worker = None
+
+            if worker.wait(5000):
+                self.identify_worker = None
         else:
             self.manager.disconnect()
+            self.identify_worker = None
 
         self.connect_button.setEnabled(True)
         self.connect_button.setText("Ligar")

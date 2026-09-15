@@ -79,6 +79,7 @@ class Dashboard(QWidget):
         layout.setSpacing(16)
 
         hero = QFrame()
+        self.welcome_hero = hero
         hero.setObjectName("dashboardHero")
         hero.setStyleSheet(f"""
         #dashboardHero {{
@@ -98,6 +99,7 @@ class Dashboard(QWidget):
         hero_layout.setSpacing(24)
 
         mark = QFrame()
+        self.welcome_mark = mark
         mark.setFixedSize(62, 62)
         mark.setStyleSheet(f"""
         QFrame {{
@@ -109,6 +111,7 @@ class Dashboard(QWidget):
         mark_layout = QVBoxLayout(mark)
         mark_layout.setContentsMargins(0, 0, 0, 0)
         mark_label = QLabel("RAD")
+        self.welcome_mark_label = mark_label
         mark_label.setAlignment(Qt.AlignCenter)
         mark_label.setStyleSheet(
             f"font-size: 15px; font-weight: 900; color: {self._accent}; "
@@ -120,6 +123,7 @@ class Dashboard(QWidget):
         text.setSpacing(6)
 
         eyebrow = QLabel("DIAGNÓSTICO AUTOMÓVEL")
+        self.welcome_eyebrow = eyebrow
         eyebrow.setStyleSheet(
             f"font-size: 10px; font-weight: 800; color: {self._accent}; "
             "letter-spacing: 1.8px; background: transparent;"
@@ -157,6 +161,8 @@ class Dashboard(QWidget):
         layout.addWidget(hero)
 
         info = QFrame()
+        self.welcome_info = info
+        self.welcome_number_labels = []
         info.setObjectName("dashboardInfo")
         info.setStyleSheet(f"""
         #dashboardInfo {{
@@ -180,6 +186,7 @@ class Dashboard(QWidget):
             block.setSpacing(3)
 
             number_label = QLabel(number)
+            self.welcome_number_labels.append(number_label)
             number_label.setStyleSheet(
                 f"font-size: 10px; font-weight: 900; color: {self._accent}; "
                 "background: transparent;"
@@ -231,6 +238,7 @@ class Dashboard(QWidget):
 
     def build_vehicle_card(self):
         card = QFrame()
+        self.vehicle_card = card
         card.setObjectName("dashboardVehicle")
         card.setStyleSheet(f"""
         #dashboardVehicle {{
@@ -252,6 +260,7 @@ class Dashboard(QWidget):
         identity.setSpacing(4)
 
         eyebrow = QLabel("VEÍCULO DETECTADO")
+        self.vehicle_eyebrow = eyebrow
         eyebrow.setStyleSheet(
             f"font-size: 10px; font-weight: 800; color: {self._accent}; "
             "letter-spacing: 1.5px; background: transparent;"
@@ -372,7 +381,105 @@ class Dashboard(QWidget):
         button.setCursor(Qt.PointingHandCursor)
         button.setMinimumHeight(54)
         button.setText(f"{title}\n{description}")
-        button.setStyleSheet(f"""
+        button.setStyleSheet(self._action_button_style(accent))
+        return button
+
+    # ------------------------------------------------------------------
+
+    def refresh_theme(self, accent=None):
+        """Actualiza imediatamente todos os elementos locais do Dashboard.
+
+        Alguns elementos do Dashboard usam QSS criado no momento da construção
+        (gradientes, labels e bordas). O QSS global da aplicação não consegue
+        substituir essas cores, por isso são actualizados explicitamente aqui.
+        """
+        self._accent = accent or get_current_accent()
+        self._colors = get_theme_colors(self._accent)
+
+        if hasattr(self, "welcome_hero"):
+            self.welcome_hero.setStyleSheet(f"""
+            #dashboardHero {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:1,
+                    stop:0 {self._colors["accent_soft"]},
+                    stop:0.55 {self._colors["accent_soft_light"]},
+                    stop:1 rgba(20, 25, 32, 0.95)
+                );
+                border: 1px solid {CARD_BORDER};
+                border-radius: 16px;
+            }}
+            """)
+
+        if hasattr(self, "welcome_mark"):
+            self.welcome_mark.setStyleSheet(f"""
+            QFrame {{
+                background: {self._colors["accent_soft"]};
+                border: 1px solid {self._colors["accent_border"]};
+                border-radius: 16px;
+            }}
+            """)
+
+        if hasattr(self, "welcome_mark_label"):
+            self.welcome_mark_label.setStyleSheet(
+                f"font-size: 15px; font-weight: 900; color: {self._accent}; "
+                "letter-spacing: 1px; background: transparent;"
+            )
+
+        if hasattr(self, "welcome_eyebrow"):
+            self.welcome_eyebrow.setStyleSheet(
+                f"font-size: 10px; font-weight: 800; color: {self._accent}; "
+                "letter-spacing: 1.8px; background: transparent;"
+            )
+
+        for label in getattr(self, "welcome_number_labels", []):
+            label.setStyleSheet(
+                f"font-size: 10px; font-weight: 900; color: {self._accent}; "
+                "background: transparent;"
+            )
+
+        if hasattr(self, "vehicle_card"):
+            self.vehicle_card.setStyleSheet(f"""
+            #dashboardVehicle {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {self._colors["accent_soft"]},
+                    stop:1 {self._colors["accent_soft_light"]}
+                );
+                border: 1px solid {CARD_BORDER};
+                border-radius: 16px;
+            }}
+            """)
+
+        if hasattr(self, "vehicle_eyebrow"):
+            self.vehicle_eyebrow.setStyleSheet(
+                f"font-size: 10px; font-weight: 800; color: {self._accent}; "
+                "letter-spacing: 1.5px; background: transparent;"
+            )
+
+        if hasattr(self, "pids_card"):
+            self.pids_card._accent = self._accent
+            self.pids_card.setStyleSheet(f"""
+            #statCard {{
+                background: {CARD_BG};
+                border: 1px solid {CARD_BORDER};
+                border-radius: 12px;
+            }}
+            #statCard:hover {{
+                border-color: {self._accent};
+            }}
+            """)
+            self.pids_card.value_label.setStyleSheet(
+                f"font-size: 22px; font-weight: 700; color: {self._accent}; "
+                "background: transparent;"
+            )
+
+        if hasattr(self, "live_button"):
+            self.live_button.setStyleSheet(self._action_button_style(self._accent))
+            self.live_button.update()
+
+    def _action_button_style(self, accent):
+        """Gera o QSS de um atalho do Dashboard com o accent actual."""
+        return f"""
         QPushButton {{
             text-align: left;
             padding: 8px 13px;
@@ -391,10 +498,7 @@ class Dashboard(QWidget):
         QPushButton:pressed {{
             background: rgba(255, 255, 255, 0.045);
         }}
-        """)
-        return button
-
-    # ------------------------------------------------------------------
+        """
 
     def update_vehicle(self, vehicle):
         vin = getattr(vehicle, "vin", None)

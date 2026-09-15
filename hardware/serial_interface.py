@@ -24,9 +24,12 @@ class SerialInterface(DiagnosticInterface):
         for port in list_ports.comports():
             result.append({
                 "device": port.device,
-                "description": port.description,
-                "manufacturer": port.manufacturer,
+                "description": port.description or "Interface série",
+                "manufacturer": port.manufacturer or "",
             })
+
+        # Ordem determinística para a lista da interface.
+        result.sort(key=lambda item: item["device"].upper())
         return result
 
     def connect(self):
