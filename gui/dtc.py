@@ -67,9 +67,10 @@ class DTCPage(QWidget):
 
         layout.addWidget(page_header(
             "Códigos de Falha",
-            "Lê e apaga os DTCs guardados nas centralinas. Usa as abas "
-            "abaixo para veres só os códigos de um sistema — por "
-            "exemplo, só o ABS ou só o Airbag."
+            "Lê e apaga os DTCs disponíveis através do OBD-II standard. "
+            "Nesta versão, a leitura é feita na ECU de emissões/motor; "
+            "ABS, Airbag e outras centralinas VAG requerem diagnóstico "
+            "específico do fabricante."
         ))
 
         content = QWidget()
@@ -136,7 +137,7 @@ class DTCPage(QWidget):
         self.stack, self.gate = page_with_gate(
             content,
             "Liga-te ao veículo para leres os códigos de falha "
-            "guardados nas centralinas."
+            "disponíveis pela interface OBD-II standard."
         )
         layout.addWidget(self.stack, 1)
 
@@ -218,9 +219,10 @@ class DTCPage(QWidget):
 
         confirm = QMessageBox.question(
             self, "Apagar códigos de falha",
-            "Tens a certeza que queres apagar todos os códigos de falha "
-            "guardados nas centralinas do veículo?\n\n"
-            "Esta ação não pode ser desfeita." + warning_extra,
+            "Tens a certeza que queres apagar os códigos de falha "
+            "da ECU OBD-II/motor?\n\n"
+            "Esta operação pode apagar informação útil para diagnóstico "
+            "e não pode ser desfeita." + warning_extra,
             QMessageBox.Yes | QMessageBox.No
         )
 

@@ -3,7 +3,9 @@ Protocolo OBD-II genérico (SAE J1979 / ISO 15031), implementado sobre
 um adaptador ELM327.
 """
 
-from app.config import CAN_PID_BATCH_SIZE
+import re
+
+from app.config import CAN_PID_BATCH_SIZE, CAN_MULTI_PID_REQUESTS
 from services.pid_database import get_pid
 from services.dtc_database import decode_dtc_bytes
 
@@ -60,42 +62,36 @@ class OBD2:
         return results
 
     def supported_pids(self):
+        """Lê os bitmasks standard de PIDs suportados com validação."""
         supported = set()
         base = 0x00
-
         while True:
             frames = self.request(0x01, base)
-            if not frames:
+            if not frames or len(frames[0]) < 4:
                 break
-
             bitmask = int.from_bytes(frames[0][-4:], "big")
-
             for offset in range(32):
                 pid = base + offset + 1
-                bit = 31 - offset
-                if bitmask & (1 << bit):
+                if bitmask & (1 << (31 - offset)):
                     supported.add(pid)
-
             if not (bitmask & 1):
                 break
-
             base += 0x20
-            if base > 0xC0:
+            if base > 0xA0:
                 break
-
         return supported
 
     def vin(self):
-        frames = self.request(0x09, 0x02)
-        raw = b"".join(frames)
-        text = "".join(chr(b) for b in raw if 32 <= b <= 126)
-        return text[-17:] if len(text) >= 17 else (text or None)
+        """Obtém um VIN de 17 caracteres sem depender de texto residual."""
+        raw = b"".join(self.request(0x09, 0x02))
+        text = "".join(chr(b) for b in raw if 32 <= b <= 126).upper()
+        match = re.search(r"[A-HJ-NPR-Z0-9]{17}", text)
+        return match.group(0) if match else None
 
     def ecu_name(self):
-        frames = self.request(0x09, 0x0A)
-        raw = b"".join(frames)
-        text = "".join(chr(b) for b in raw if 32 <= b <= 126).strip()
-        return text or None
+        raw = b"".join(self.request(0x09, 0x0A))
+        text = "".join(chr(b) for b in raw if 32 <= b <= 126)
+        return text.strip() or None
 
     def read_pid(self, pid):
         definition = get_pid(pid)
@@ -118,7 +114,7 @@ class OBD2:
             return result
 
         is_can = bool(getattr(self.adapter, "is_can", False))
-        use_batch = is_can and self._batch_ok is not False and len(pids) > 1
+        use_batch = (CAN_MULTI_PID_REQUESTS and is_can and self._batch_ok is not False and len(pids) > 1)
 
         if not use_batch:
             for pid in pids:
@@ -230,8 +226,14 @@ class OBD2:
         return data
 
     def clear_trouble_codes(self):
-        self.request(0x04)
-        return True
+        """Apaga DTCs OBD-II da ECU de emissões e exige confirmação 44."""
+        lines = self.adapter.command("04")
+        cleaned = [str(line).replace(" ", "").upper() for line in lines]
+        if any(line.startswith("44") for line in cleaned):
+            return True
+        raise OBD2Error(
+            "A ECU não confirmou o apagamento dos DTCs (resposta 44 não recebida)."
+        )
 
     def freeze_frame(self, pid, frame_number=0):
         definition = get_pid(pid)

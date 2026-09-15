@@ -131,6 +131,13 @@ class ELM327:
         return names.get(code, f"Desconhecido ({code})" if code else "—")
 
     def command(self, command, delay=None):
+        """Envia um comando AT/OBD validado e devolve linhas limpas."""
+        command = str(command or "").strip().upper()
+        if not command or any(ch in command for ch in "\r\n"):
+            raise ValueError("Comando OBD inválido.")
+        if not re.fullmatch(r"[0-9A-Z? .]+", command):
+            raise ValueError("Comando OBD contém caracteres inválidos.")
+
         if not self.initialized:
             self.initialize()
 

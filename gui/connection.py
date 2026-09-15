@@ -369,24 +369,24 @@ class ConnectionPage(QWidget):
         self.protocolReady.emit(None, {})
 
     def disconnect(self):
+        """Para consumidores OBD antes de fechar a porta série."""
         worker = self.identify_worker
+
+        # Primeiro informa as páginas dependentes para estas pararem as
+        # threads de leitura enquanto a interface ainda está disponível.
+        self.protocolReady.emit(None, {})
 
         if worker and worker.isRunning():
             worker.cancel()
-            # Fechar a porta força leituras seriais pendentes a terminar.
-            self.manager.disconnect()
+            worker.wait(1500)
 
-            if worker.wait(5000):
-                self.identify_worker = None
-        else:
-            self.manager.disconnect()
-            self.identify_worker = None
+        self.manager.disconnect()
+        self.identify_worker = None
 
         self.connect_button.setEnabled(True)
         self.connect_button.setText("Ligar")
         self.set_status("disconnected", "Sem ligação estabelecida.")
         self.set_voltage(None)
-        self.protocolReady.emit(None, {})
 
     def set_voltage(self, voltage):
         if voltage is None:
